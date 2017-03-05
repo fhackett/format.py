@@ -70,7 +70,7 @@ class ComponentListRequest(_format.Specification):
                 _format.Integer('id', bytes=1),
             ],
             optional=[
-                _format.Composite('search_filter', _jaus.counted_string, bytes=1),
+                _format.Composite('search_filter', gen=_jaus.counted_string, bytes=1),
             ])
 
 class NodeListRequest(_format.Specification):

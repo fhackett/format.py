@@ -5,18 +5,24 @@ import bitstring as _bitstring
 class MissingParameterError(Exception):
     """A parameter was missing on instantiation of a Specification."""
 
+class NoDefaultForAnonymousRecord(Exception):
+    """If you create an anonymous record, make sure it always has a reasonable default."""
+
 class Record(metaclass=_abc.ABCMeta):
     representation = NotImplemented
-    def __init__(self, name, default=NotImplemented):
+    def __init__(self, name=None, default=NotImplemented):
         super().__init__()
         self.name = name
         self.default = default
     def instantiate(self, dct):
-        if self.name in dct:
+        if self.name is not None and self.name in dct:
             return dct[self.name]
         else:
             if self.default is NotImplemented:
-                raise MissingParameterError(self.name)
+                if self.name is None:
+                    raise NoDefaultForAnonymousRecord()
+                else:
+                    raise MissingParameterError(self.name)
             if self.representation is not NotImplemented:
                 return self.representation(self.default)
             else:
@@ -34,30 +40,32 @@ class Query(Record):
 
     Will be `NotImplemented` on read or if you are trying to read a field that has not yet been parsed.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name, *args, transform=None, **kwargs):
+        super().__init__(name, *args, **kwargs)
+        self.transform = transform
     def instantiate(self, dct):
-        return dct.get(self.name, self.default)
+        result = dct.get(self.name, self.default)
+        if self.transform is not None and self.name in dct:
+            return self.transform(result)
+        else:
+            return result
     def read(self, stream, data):
         return self.default
     def write(self, val, stream, data):
         pass
 
-class SpecificationMeta(_abc.ABCMeta):
-    def __new__(meta, name, bases, props):
-        # Detect variants by their magic class attribute
-        if '_variant_key_name' in props:
-            props['_registry'] = {}
-            props['_is_variant'] = True
-        else:
-            props['_is_variant'] = False
-        klass = super(SpecificationMeta, meta).__new__(meta, name, bases, props)
-        # Auto-register subclasses of variants in the variant system
-        if '_variant_key' in props:
-            for base in bases:
-                if base._is_variant:
-                    base._registry[props['_variant_key']] = klass
-        return klass
+class Computed(Record):
+    def __init__(self, name, value):
+        super().__init__(name)
+        self.value = value
+    def instantiate(self, dct):
+        if self.name in dct:
+            assert dct[self.name] == self.value
+        return self.value
+    def read(self, stream, data):
+        return self.value
+    def write(self, val, stream, data):
+        assert val == self.value
 
 def _run_generator(gen, data, fn):
     try:
@@ -74,16 +82,15 @@ def _run_generator(gen, data, fn):
         return ex.value
 
 class Composite(Record):
-    def __init__(self, name, gen, default=NotImplemented, *args, **kwargs):
-        super().__init__(name, default)
-        self.gen_args = args
+    def __init__(self, *args, gen, **kwargs):
+        super().__init__(*args)
         self.gen_kwargs = kwargs
         self.gen = gen
     def read(self, stream, data):
         def run(record):
             return record.read(stream, data)
         return _run_generator(
-            self.gen(self.name, *self.gen_args, **self.gen_kwargs),
+            self.gen(self.name, **self.gen_kwargs),
             data=data,
             fn=run)
     def write(self, val, stream, data):
@@ -94,9 +101,25 @@ class Composite(Record):
             record.write(d, stream, data)
             return d
         _run_generator(
-            self.gen(self.name, *self.gen_args, **self.gen_kwargs),
+            self.gen(self.name, **self.gen_kwargs),
             data=data,
             fn=run)
+
+class SpecificationMeta(_abc.ABCMeta):
+    def __new__(meta, name, bases, props):
+        # Detect variants by their magic class attribute
+        if '_variant_key_name' in props:
+            props['_registry'] = {}
+            props['_is_variant'] = True
+        else:
+            props['_is_variant'] = False
+        klass = super(SpecificationMeta, meta).__new__(meta, name, bases, props)
+        # Auto-register subclasses of variants in the variant system
+        if '_variant_key' in props:
+            for base in bases:
+                if base._is_variant:
+                    base._registry[props['_variant_key']] = klass
+        return klass
 
 class UnusedParametersError(Exception):
     """A Specification was instantiated with arguments that were not used."""
@@ -152,7 +175,8 @@ class Specification(metaclass=SpecificationMeta):
         fields_used = set()
         self._fields = fields_used
         def run(record):
-            fields_used.add(record.name)
+            if record.name is not None:
+                fields_used.add(record.name)
             return record.instantiate(kwargs)
         _run_generator(
             gen=self._data(data),
@@ -181,6 +205,8 @@ class Specification(metaclass=SpecificationMeta):
     @classmethod
     def _read(cls, stream):
         data = {}
+        if isinstance(stream,bytes):
+            stream = _bitstring.ConstBitStream(stream)
         old_pos = stream.pos
         def run(record):
             return record.read(stream, data)
@@ -199,22 +225,27 @@ class Specification(metaclass=SpecificationMeta):
     @_abc.abstractmethod
     def _data(cls, data):
         return iter(())
-    def _write(self, stream):
+    def _write(self, stream=None):
         data = self.__dict__
+        used_stream = stream
+        if stream is None:
+            used_stream = _bitstring.BitStream()
         def run(record):
             d = data.get(record.name)
             if d is None and record.default is not NotImplemented:
                 d = record.default
-            record.write(d, stream, data)
+            record.write(d, used_stream, data)
             return d
         _run_generator(
             gen=self._data(data),
             data=data,
             fn=run)
+        if stream is None:
+            return used_stream.bytes
 
 class Integer(Record):
-    def __init__(self, name, bits=None, bytes=None, le=None, unsigned=True, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, bits=None, bytes=None, le=None, unsigned=True, **kwargs):
+        super().__init__(*args, **kwargs)
         if bits is None:
             bits = 0
         if bytes is not None:
@@ -236,8 +267,8 @@ class Integer(Record):
 
 class Bits(Record):
     representation = _bitstring.Bits
-    def __init__(self, name, bits=None, bytes=None, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, bits=None, bytes=None, **kwargs):
+        super().__init__(*args, **kwargs)
         if bits is None:
             bits = 0
         if bytes is not None:
@@ -251,8 +282,8 @@ class Bits(Record):
 
 class Bytes(Record):
     representation = bytes
-    def __init__(self, name, length, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, length, **kwargs):
+        super().__init__(*args, **kwargs)
         self._format = 'bytes:{}'.format(length)
         self.length = length
     def read(self, stream, data):
@@ -263,8 +294,8 @@ class Bytes(Record):
 
 class String(Bytes):
     representation = str
-    def __init__(self, name, encoding='ascii', *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, encoding='ascii', **kwargs):
+        super().__init__(*args, **kwargs)
         self.encoding = encoding
     def read(self, stream, data):
         return super().read(stream).decode(encoding=self.encoding)
@@ -272,8 +303,8 @@ class String(Bytes):
         super().write(val.encode(encoding=self.encoding))
 
 class Enum(Integer):
-    def __init__(self, name, enum, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, enum, **kwargs):
+        super().__init__(*args, **kwargs)
         self.representation = enum
         self.enum = enum
     def read(self, stream, data):
@@ -283,8 +314,8 @@ class Enum(Integer):
         super().write(val.value, stream)
 
 class Instance(Record):
-    def __init__(self, name, specification, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, specification, **kwargs):
+        super().__init__(*args, **kwargs)
         self.specification = specification
     def read(self, stream, data):
         return self.specification._read(stream)
@@ -292,11 +323,28 @@ class Instance(Record):
         val._write(stream)
 
 class Repeat(Instance):
-    def __init__(self, name, count, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, *args, count, **kwargs):
+        super().__init__(*args, **kwargs)
         self.count = count
     def read(self, stream, data):
-        return [super().read(stream) for i in range(self.count)]
+        return [self.specification._read(stream) for i in range(self.count)]
     def write(self, val, stream, data):
         for v in val:
-            super().write(v, stream)
+            super().write(v, stream, data)
+
+class Consume(Instance):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def read(self, stream, data):
+        result = []
+        while stream.pos != len(stream):
+            result.append(super().read(stream))
+    def write(self, val, stream, data):
+        for v in val:
+            super().write(v, stream, data)
+
+def transform(val, fn):
+    if val is not NotImplemented:
+        return fn(val)
+    else:
+        return NotImplemented

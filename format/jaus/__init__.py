@@ -250,19 +250,15 @@ class PresenceVector(_format.Bits):
         super().write(_bitstring.Bits(field in val for field in self.fields))
 
 def counted_list(name, specification, *args, **kwargs):
-    count_name = name + '_count'
     lst = yield _format.Query(name)
     count = yield _format.Integer(
-        count_name,
         default=len(lst) if lst else NotImplemented,
         *args, **kwargs)
     return yield _format.Repeat(name, specification=specification, count=count)
 
 def counted_string(name, *args, **kwargs):
-    count_name = name + '_count'
-    str = yield _format.Query(name)
+    s = yield _format.Query(name)
     count = yield _format.Integer(
-        count_name,
-        default=len(str) if str else NotImplemented,
+        default=len(s) if s else NotImplemented,
         *args, **kwargs)
     return yield _format.String(name, length=count)
