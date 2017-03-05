@@ -39,8 +39,8 @@ class Packet(_format.Specification):
         message_type = yield _format.Integer('message_type', bits=6, default=0)
         assert message_type == 0
 
-        HC_flags = yield _format.Enum('HC_flags', enum=HCFlags, bits=2, default=HCFlags.NONE)
-        packet_overhead = 14 if HC_flags is HCFlags.NONE else 16
+        HC_flags = yield _format.Enum('HC_flags', enum=Packet.HCFlags, bits=2, default=Packet.HCFlags.NONE)
+        packet_overhead = 14 if HC_flags is Packet.HCFlags.NONE else 16
 
         default_data_size = yield _format.Query(
             'contents',
@@ -48,16 +48,16 @@ class Packet(_format.Specification):
         data_size = yield _format.Integer('data_size', bytes=2, le=True, default=default_data_size)
 
         # these fields only exist if header compression is used
-        if HC_flags is not HCFlags.NONE:
+        if HC_flags is not Packet.HCFlags.NONE:
             yield _format.Integer('HC_number', bytes=1)
             yield _format.Integer('HC_length', bytes=1)
 
-        yield _format.Enum('priority', enum=Priority, bits=2, default=Priority.STANDARD)
-        yield _format.Enum('broadcast', enum=BroadcastFlags, bits=2, default=BroadcastFlags.LOCAL)
-        yield _format.Enum('ack_nack', enum=ACKNACKFlags, bits=2, default=ACKNACKFlags.NO_RESPONSE_REQUIRED)
-        yield _format.Enum('data_flags', enum=DataFlags, bits=2)
-        yield _format.Instance('destination_id', _format.jaus.Id)
-        yield _format.Instance('source_id', _format.jaus.Id)
+        yield _format.Enum('priority', enum=Packet.Priority, bits=2, default=Packet.Priority.STANDARD)
+        yield _format.Enum('broadcast', enum=Packet.BroadcastFlags, bits=2, default=Packet.BroadcastFlags.LOCAL)
+        yield _format.Enum('ack_nack', enum=Packet.ACKNACKFlags, bits=2, default=Packet.ACKNACKFlags.NO_RESPONSE_REQUIRED)
+        yield _format.Enum('data_flags', enum=Packet.DataFlags, bits=2)
+        yield _format.Instance('destination_id', specification=_format.jaus.Id)
+        yield _format.Instance('source_id', specification=_format.jaus.Id)
         yield _format.Bytes(
             'contents',
             length=data_size-packet_overhead)
@@ -86,16 +86,23 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         self.transport = None
         self.routings = {}
         self._send_queue = []
+        self._sequence_numbers = {}
         async def sender():
             while True:
                 self._send_packets(self._send_queue)
                 self._send_queue = []
-                await _asyncio.sleep(0, loop=self.loop)
+                await _asyncio.sleep(0.02, loop=self.loop)
         self._sender = _asyncio.ensure_future(sender(), loop=self.loop)
 
     def _find_destination_addr(self, packet):
         # TODO add broadcast options
         return self.routings[packet.destination_id]
+
+    def _generate_next_sequence_number(self, source_id, destination_id):
+        index = (source_id, destination_id)
+        n = self._sequence_numbers.setdefault(index, 0)
+        self._sequence_numbers[index] = n+1
+        return n
 
     def _send_packets(self, packets):
         for addr, payload in self._make_payloads(packets):
@@ -109,13 +116,16 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
             resolvers[packet.sequence_number] = resp
             return resp
 
-    def _split_into_packets(contents, **kwargs):
+    def _split_into_packets(self, contents, **kwargs):
         SINGLE_PACKET_OVERHEAD = 14 + 1 # uncompressed packet overhead + payload overhead
+        source_id = kwargs['source_id']
+        destination_id = kwargs['destination_id']
         if len(contents)+SINGLE_PACKET_OVERHEAD <= MAX_PAYLOAD_SIZE:
-            return Packet(
+            return [Packet(
                 contents=contents,
                 data_flags=Packet.DataFlags.SINGLE_PACKET,
-                **kwargs)
+                sequence_number=self._generate_next_sequence_number(source_id, destination_id),
+                **kwargs)]
         else:
             parts = []
             while len(contents)+SINGLE_PACKET_OVERHEAD > MAX_PAYLOAD_SIZE:
@@ -124,24 +134,18 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
                 contents = contents[split_point:]
             if len(contents) > 0:
                 parts.append(contents)
-            begin = Packet(
-                contents=parts[0],
-                data_flags=Packet.DataFlags.FIRST_PACKET,
-                **kwargs)
-            end = Packet(
-                contents=parts[-1],
-                data_flags=Packet.DataFlags.LAST_PACKET,
-                **kwargs)
-            if len(parts) > 2:
-                return [begin, end]
-            else:
-                middle = [
-                    Packet(
-                        contents=part,
-                        data_flags=Packet.DataFlags.NORMAL_PACKET,
-                        **kwargs)
-                    for part in parts[1:-1]]
-                return [begin] + middle + [end]
+            return [
+                Packet(
+                    contents=part,
+                    data_flags=data_flag,
+                    sequence_number=self._generate_next_sequence_number(source_id, destination_id),
+                    **kwargs)
+                for part, data_flag in zip(
+                    parts,
+                    (
+                        [Packet.DataFlags.FIRST_PACKET]
+                        +[Packet.DataFlags.NORMAL_PACKET]*(len(parts)-2)
+                        +[Packet.DataFlags.LAST_PACKET]))]
 
     def send_message(self, contents, source_id, destination_id, broadcast=Packet.BroadcastFlags.NONE, priority=Packet.Priority.STANDARD, require_ack=False):
         packets = self._split_into_packets(
@@ -149,8 +153,8 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
             priority=priority,
             broadcast=broadcast,
             ack_nack=Packet.ACKNACKFlags.RESPONSE_REQUIRED if require_ack else Packet.ACKNACKFlags.NO_RESPONSE_REQUIRED,
-            destination_id=source_id,
-            source_id=destination_id)
+            destination_id=destination_id,
+            source_id=source_id)
         if require_ack:
             async def check_send(packet):
                 response = None
@@ -172,7 +176,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
             for packet in packets:
                 self._send_packet(packet)
 
-    def _calculate_payload_size(packets):
+    def _calculate_payload_size(self, packets):
         return sum(packet.data_size for packet in packets) + 1
 
     def _make_payloads(self, packets):
@@ -180,25 +184,25 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         for packet in packets:
             addr = self._find_destination_addr(packet)
             packets = packets_by_destination_addr.setdefault(addr, [])
-            if self._calculate_payload_size(packets + packet) > MAX_PAYLOAD_SIZE:
-                packets_by_destination_addr[addr] = [packet]
+            if self._calculate_payload_size(packets + [packet]) > MAX_PAYLOAD_SIZE:
                 yield addr, Payload(packets=packets)
+                packets_by_destination_addr[addr] = [packet]
             else:
                 packets.append(packet)
-        for addr, packets in packets_by_destination_addr:
+        for addr, packets in packets_by_destination_addr.items():
             yield addr, Payload(packets=packets)
 
     def connection_made(self, transport):
         self.transport = transport
 
     def _find_first_packet(self, packet, dct):
-        while packet is not None and p.data_flags is not Packet.DataFlags.FIRST_PACKET:
+        while packet is not None and packet.data_flags is not Packet.DataFlags.FIRST_PACKET:
             packet = dct.get(packet.sequence_number-1)
         return packet
 
     def _try_sequence_from_first_packet(self, packet, dct):
         packets = []
-        while packet is not None and p.data_flags is not Packet.DataFlags.LAST_PACKET:
+        while packet is not None and packet.data_flags is not Packet.DataFlags.LAST_PACKET:
             packets.append(packet)
             packet = dct.get(packet.sequence_number+1)
         if packet is not None:
@@ -210,16 +214,15 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
     def _try_reconstruct_message(self, packet, dst_id):
         if packet.data_flags is Packet.DataFlags.SINGLE_PACKET:
             return packet.contents
-        if packet.data_flags is Packet.DataFlags.FIRST_PACKET:
-            accumulators = self._accumulators[dst_id]
-            first = self._find_first_packet(packet, accumulators)
-            sequence = self._try_sequence_from_first_packet(packet, accumulators)
-            if sequence is not None:
-                for p in sequence:
-                    del accumulators[p.sequence_number]
-                return sum(p.contents for p in sequence)
-            else:
-                return None
+        accumulators = self._accumulators[dst_id]
+        first = self._find_first_packet(packet, accumulators)
+        sequence = self._try_sequence_from_first_packet(first, accumulators)
+        if sequence is not None:
+            for p in sequence:
+                del accumulators[p.sequence_number]
+            return b''.join(p.contents for p in sequence)
+        else:
+            return None
 
     def _packet_received(self, packet, addr):
         self.routings[packet.source_id] = addr
@@ -239,10 +242,9 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
                     destination_id=packet.source_id,
                     source_id=packet.destination_id)
                 self._send_packet(ack)
+            accumulators[packet.sequence_number] = packet
             msg = self._try_reconstruct_message(packet, packet.destination_id)
-            if msg is None:
-                accumulators[packet.destination_id] = packet
-            else:
+            if msg is not None:
                 self.message_received(msg, packet.source_id, packet.destination_id)
 
     def datagram_received(self, data, addr):
@@ -253,9 +255,10 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
     def message_received(self, message, src_id, dst_id):
         pass
 
-    def close(self):
+    async def close(self):
         self._sender.cancel()
-        super().close()
+        self.transport.close()
+        await _asyncio.sleep(0, loop=self.loop)
 
 class ConnectedJUDPProtocol(JUDPProtocol):
     class Connection:
@@ -263,19 +266,21 @@ class ConnectedJUDPProtocol(JUDPProtocol):
             self.protocol = protocol
             self.recv_queue = recv_queue
             self.own_id = own_id
-        async def listen(self):
-            return (await self.recv_queue.get())
+        async def listen(self, timeout=None):
+            return (await _asyncio.wait_for(
+                self.recv_queue.get(),
+                timeout=timeout))
         async def send_message(self, contents, **kwargs):
             result = self.protocol.send_message(contents, source_id=self.own_id, **kwargs)
             if result is not None:
                 await result
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._receive_queue = {}
+        self._receive_queues = {}
     def message_received(self, message, src_id, dst_id):
         if dst_id in self._receive_queues:
             self._receive_queues[dst_id].put_nowait((message, src_id))
     def connect(self, own_id):
         recv_queue = _asyncio.Queue(loop=self.loop)
-        self._receive_queues[own_id] = q
-        return Connection(self, recv_queue, own_id)
+        self._receive_queues[own_id] = recv_queue
+        return ConnectedJUDPProtocol.Connection(self, recv_queue, own_id)

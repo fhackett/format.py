@@ -1,5 +1,6 @@
 import abc as _abc
 import enum as _enum
+import asyncio as _asyncio
 
 import format as _format
 
@@ -43,7 +44,7 @@ class ServiceMeta(_abc.ABCMeta):
         klass.message_handler_names = {
             val.message_code: name
             for name, val in dct.items()
-            if getattr(val, 'is_message_handler')
+            if getattr(val, 'is_message_handler', False)
         }
         return super().__init__(name, bases, dct)
 
@@ -172,8 +173,8 @@ class Message(_format.Specification):
         ReportServices = 0x4B03
         ReportServiceList = 0x4B04
 
-    @_abc.abstractmethod
     @classmethod
+    @_abc.abstractmethod
     def _data(cls, data):
         super()._data(data)
         yield _format.Enum('message_code', enum=Code, bytes=2, le=True)
@@ -254,11 +255,11 @@ def counted_list(name, specification, *args, **kwargs):
     count = yield _format.Integer(
         default=len(lst) if lst else NotImplemented,
         *args, **kwargs)
-    return yield _format.Repeat(name, specification=specification, count=count)
+    return (yield _format.Repeat(name, specification=specification, count=count))
 
 def counted_string(name, *args, **kwargs):
     s = yield _format.Query(name)
     count = yield _format.Integer(
         default=len(s) if s else NotImplemented,
         *args, **kwargs)
-    return yield _format.String(name, length=count)
+    return (yield _format.String(name, length=count))

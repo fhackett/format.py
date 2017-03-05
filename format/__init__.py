@@ -1,5 +1,6 @@
 import abc as _abc
 import bitstring as _bitstring
+import collections as _collections
 
 
 class MissingParameterError(Exception):
@@ -113,6 +114,8 @@ class SpecificationMeta(_abc.ABCMeta):
             props['_is_variant'] = True
         else:
             props['_is_variant'] = False
+        props['_slots_cache'] = {}
+        props.setdefault('_is_cached_subclass', False)
         klass = super(SpecificationMeta, meta).__new__(meta, name, bases, props)
         # Auto-register subclasses of variants in the variant system
         if '_variant_key' in props:
@@ -150,7 +153,9 @@ class Specification(metaclass=SpecificationMeta):
     keeping all the subclasses DRY.
     """
     def __new__(cls, **kwargs):
-        if cls._is_variant:
+        if cls._is_cached_subclass:
+            return super(Specification, cls).__new__(cls)
+        elif cls._is_variant:
             data = {}
             def run(record):
                 return record.instantiate(kwargs)
@@ -160,52 +165,67 @@ class Specification(metaclass=SpecificationMeta):
                 fn=run)
             return cls._registry[data[cls._variant_key_name]](**kwargs)
         else:
-            return super(Specification, cls).__new__(cls)
+            # Don't allow people to instantiate a variant subclass with the wrong key
+            sup = super(Specification, cls)
+            if isinstance(sup, Specification) and sup._is_variant:
+                if sup._variant_key_name in kwargs:
+                    assert kwargs[sup._variant_key_name] == cls._variant_key
+                else:
+                    kwargs[sup._variant_key_name] = cls._variant_key
+
+            data = _collections.OrderedDict()
+
+            fields_used = set()
+            def run(record):
+                if record.name is not None:
+                    fields_used.add(record.name)
+                return record.instantiate(kwargs)
+            _run_generator(
+                gen=cls._data(data),
+                data=data,
+                fn=run)
+
+            # check we used all the fields provided
+            unused_fields = set(kwargs.keys()) - fields_used
+            if len(unused_fields):
+                raise UnusedParametersError({
+                    name: kwargs[name]
+                    for name in unused_fields})
+
+            fields = tuple(data.keys())
+            if fields in cls._slots_cache:
+                return cls._slots_cache[fields](**data)
+            else:
+                subclass = type(cls.__name__, (cls,), {
+                    '__slots__': fields,
+                    '_is_cached_subclass': True,
+                    '_fields': fields,
+                })
+                cls._slots_cache[fields] = subclass
+                return subclass(**data)
     def __init__(self, **kwargs):
         super().__init__()
-        data = self.__dict__
-        # Don't allow people to instantiate a variant subclass with the wrong key
-        sup = super()
-        if isinstance(sup, Specification) and sup._is_variant:
-            if sup._variant_key_name in kwargs:
-                assert kwargs[sup._variant_key_name] == self._variant_key
-            else:
-                kwargs[sup._variant_key_name] = self._variant_key
-
-        fields_used = set()
-        self._fields = fields_used
-        def run(record):
-            if record.name is not None:
-                fields_used.add(record.name)
-            return record.instantiate(kwargs)
-        _run_generator(
-            gen=self._data(data),
-            data=data,
-            fn=run)
-
-        # check we used all the fields provided
-        unused_fields = set(kwargs.keys()) - fields_used
-        if len(unused_fields):
-            raise UnusedParametersError({
-                name: kwargs[name]
-                for name in unused_fields})
+        for k, v in kwargs.items():
+            setattr(self, k, v)
     def __eq__(self, other):
         if isinstance(other, type(self)):
-            own_fields = {name: getattr(self, name) for name in self._fields}
-            other_fields = {name: getattr(other, name) for name in other._fields}
-            return own_fields == other_fields
+            return all(getattr(self, f) == getattr(other, f) for f in self._fields)
         else:
             return super().__eq__(self, other)
+    def __hash__(self):
+        return hash(tuple(getattr(self, f) for f in self._fields))
     def __repr__(self):
         return '{name}({repr})'.format(
             name=type(self).__name__,
-            repr=repr({
-                name: getattr(self, name)
-                for name in self._fields}))
+            repr=', '.join(
+                '{name}={value}'.format(
+                    name=name,
+                    value=getattr(self, name))
+                for name in self._fields))
     @classmethod
     def _read(cls, stream):
         data = {}
-        if isinstance(stream,bytes):
+        if isinstance(stream, bytes):
             stream = _bitstring.ConstBitStream(stream)
         old_pos = stream.pos
         def run(record):
@@ -226,7 +246,7 @@ class Specification(metaclass=SpecificationMeta):
     def _data(cls, data):
         return iter(())
     def _write(self, stream=None):
-        data = self.__dict__
+        data = {f: getattr(self, f) for f in self._fields}
         used_stream = stream
         if stream is None:
             used_stream = _bitstring.BitStream()
@@ -300,7 +320,7 @@ class String(Bytes):
     def read(self, stream, data):
         return super().read(stream).decode(encoding=self.encoding)
     def write(self, val, stream, data):
-        super().write(val.encode(encoding=self.encoding))
+        super().write(val.encode(encoding=self.encoding), stream, data)
 
 class Enum(Integer):
     def __init__(self, *args, enum, **kwargs):
@@ -308,10 +328,10 @@ class Enum(Integer):
         self.representation = enum
         self.enum = enum
     def read(self, stream, data):
-        data = super().read(stream)
+        data = super().read(stream, data)
         return self.enum(data)
     def write(self, val, stream, data):
-        super().write(val.value, stream)
+        super().write(val.value, stream, data)
 
 class Instance(Record):
     def __init__(self, *args, specification, **kwargs):
@@ -338,7 +358,8 @@ class Consume(Instance):
     def read(self, stream, data):
         result = []
         while stream.pos != len(stream):
-            result.append(super().read(stream))
+            result.append(super().read(stream, data))
+        return result
     def write(self, val, stream, data):
         for v in val:
             super().write(v, stream, data)

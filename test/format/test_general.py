@@ -18,6 +18,12 @@ def test_data1():
 def f1():
     return Foo(foo=3, bar=2)
 
+def test__can_be_used_as_index(f1):
+    d = {f1: 2, 3: 5}
+    assert d[f1] == 2
+    assert d[Foo(foo=3, bar=2)] == 2
+    assert Foo(foo=1, bar=2) not in d
+
 def test__constructor(f1):
     assert f1.foo == 3
     assert f1.bar == 2
