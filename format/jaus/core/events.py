@@ -30,22 +30,22 @@ class EventType(_enum.Enum):
     EVERY_CHANGE = 1
 
 class CreateEvent(_jaus.Message):
-    _variant_key = _jaus.Message.Code.CreateEvent
+    message_code = _jaus.Message.Code.CreateEvent
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('request_id', bytes=1)
         yield _format.Enum('event_type', enum=EventType, bytes=1)
-        yield from _jaus.ScaledFloat(
+        yield _jaus.ScaledFloat(
             'requested_periodic_rate',
             bytes=2,
-            endianness='le',
+            le=True,
             lower_limit=0,
             upper_limit=1092)
         yield from _jaus.counted_bytes('query_message', bytes=4, le=True)
 
 class UpdateEvent(_jaus.Message):
-    _variant_key = _jaus.Message.Code.UpdateEvent
+    message_code = _jaus.Message.Code.UpdateEvent
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -54,14 +54,14 @@ class UpdateEvent(_jaus.Message):
         yield _jaus.ScaledFloat(
             'requested_periodic_rate',
             bytes=2,
-            endianness='le',
+            le=True,
             lower_limit=0,
             upper_limit=1092)
         yield _format.Integer('event_id', bytes=1)
         yield from _jaus.counted_bytes('query_message', bytes=4, le=True)
 
 class CancelEvent(_jaus.Message):
-    _variant_key = _jaus.Message.Code.CancelEvent
+    message_code = _jaus.Message.Code.CancelEvent
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -69,7 +69,7 @@ class CancelEvent(_jaus.Message):
         yield _format.Integer('event_id', bytes=1)
 
 class CreateCommandEvent(_jaus.Message):
-    _variant_key = _jaus.Message.Code.CreateCommandEvent
+    message_code = _jaus.Message.Code.CreateCommandEvent
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -79,7 +79,7 @@ class CreateCommandEvent(_jaus.Message):
 
 
 class QueryEvents(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryEvents
+    message_code = _jaus.Message.Code.QueryEvents
 
     _variant_key_name = 'variant'
     class Variant(_enum.Enum):
@@ -90,31 +90,31 @@ class QueryEvents(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Enum('variant', enum=Variant, bytes=1)
+        yield _format.Enum('variant', enum=cls.Variant, bytes=1, default=getattr(cls, 'variant', NotImplemented))
 
 class QueryEventsByMessageId(QueryEvents):
-    _variant_key = QueryEvents.Variant.MESSAGE_ID
+    variant = QueryEvents.Variant.MESSAGE_ID
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Enum('message_code', enum=_jaus.Message.Code, bytes=2, le=True)
 
 class QueryEventsByType(QueryEvents):
-    _variant_key = QueryEvents.Variant.EVENT_TYPE
+    variant = QueryEvents.Variant.EVENT_TYPE
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Enum('event_type', enum=EventType, bytes=1)
 
 class QueryEventsByID(QueryEvents):
-    _variant_key = QueryEvents.Variant.EVENT_ID
+    variant = QueryEvents.Variant.EVENT_ID
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('event_id', bytes=1)
 
 class QueryEventsAll(QueryEvents):
-    _variant_key = QueryEvents.Variant.ALL_EVENTS
+    variant = QueryEvents.Variant.ALL_EVENTS
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -122,10 +122,13 @@ class QueryEventsAll(QueryEvents):
 
 
 class QueryEventTimeout(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryEventTimeout
+    message_code = _jaus.Message.Code.QueryEventTimeout
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class ConfirmEventRequest(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ConfirmEventRequest
+    message_code = _jaus.Message.Code.ConfirmEventRequest
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -134,14 +137,14 @@ class ConfirmEventRequest(_jaus.Message):
         yield _jaus.ScaledFloat(
             'confirmed_periodic_rate',
             bytes=2,
-            endianness='le',
+            le=True,
             lower_limit=0,
             upper_limit=1092)
 
 
 
 class RejectEventRequest(_jaus.Message):
-    _variant_key = _jaus.Message.Code.RejectEventRequest
+    message_code = _jaus.Message.Code.RejectEventRequest
     class ResponseCode(_enum.Enum):
         PERIODIC_EVENTS_NOT_SUPPORTED = 1
         CHANGE_BASED_EVENTS_NOT_SUPPORTED = 2
@@ -163,22 +166,22 @@ class RejectEventRequest(_jaus.Message):
             ])
 
 class ReportEvents(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportEvents
+    message_code = _jaus.Message.Code.ReportEvents
     class Event(_format.Specification):
         @classmethod
         def _data(cls, data):
             yield from super()._data(data)
             yield _format.Enum('type', enum=EventType, bytes=1)
             yield _format.Integer('id', bytes=1)
-            yield _jaus.counted_bytes('query_message', bytes=4, le=True)
+            yield from _jaus.counted_bytes('query_message', bytes=4, le=True)
 
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield from _jaus.counted_list('events', Event)
+        yield from _jaus.counted_list('events', cls.Event, bytes=1)
 
 class Event(_jaus.Message):
-    _variant_key = _jaus.Message.Code.Event
+    message_code = _jaus.Message.Code.Event
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -187,14 +190,14 @@ class Event(_jaus.Message):
         yield from _jaus.counted_bytes('report_message', bytes=4, le=True)
 
 class ReportEventTimeout(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportEventTimeout
+    message_code = _jaus.Message.Code.ReportEventTimeout
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('timeout', bytes=1)
 
 class CommandEvent(_jaus.Message):
-    _variant_key = _jaus.Message.Code.CommandEvent
+    message_code = _jaus.Message.Code.CommandEvent
     class Result(_enum.Enum):
         SUCCESSFUL = 0
         UNSUCCESSFUL = 1
@@ -232,25 +235,23 @@ class Service(_jaus.Service):
         self._next_event_id = 0
         self.event_timeout = 60
 
-    def close(self):
-        super().close()
+    async def close(self):
         for e in self.events.values():
             e.stop()
+        await super().close()
 
     @_asyncio.coroutine
     def _fire_event(self, event):
-        message_code = event.message.message_code
         response = yield from self.component.dispatch_message(
             message=event.message,
-            message_code=message_code,
             source_id=event.destination_id)
 
-        yield from self.component.transport.send_message(
-            destination_id=event.destination_id,
-            message=Event(
+        yield from self.component.send_message(
+            Event(
                 event_id=event.id,
                 sequence_number=event.sequence_number,
-                report_message=response._serialize_to_bytes()))
+                report_message=response._write()),
+            destination_id=event.destination_id)
         event.sequence_number += 1
         if event.sequence_number > 255:
             event.sequence_number = 0
@@ -296,7 +297,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.CreateEvent,
         supports_events=False)
     @_asyncio.coroutine
-    def on_create_event(self, source_id, message, **kwargs):
+    def on_create_event(self, message, source_id):
         event_id = self._get_event_id()
         periodic_rate = self._normalise_periodic_rate(
             message.requested_periodic_rate,
@@ -312,7 +313,7 @@ class Service(_jaus.Service):
             periodic_rate=periodic_rate,
             request_id=message.request_id)
         self.events[event_id] = event
-        return _messages.ConfirmEventRequest(
+        return ConfirmEventRequest(
             request_id=message.request_id,
             event_id=event_id,
             confirmed_periodic_rate=periodic_rate)
@@ -321,7 +322,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.UpdateEvent,
         supports_events=False)
     @_asyncio.coroutine
-    def on_update_event(self, source_id, message, **kwargs):
+    def on_update_event(self, message, source_id):
         if message.event_id not in self.events:
             return RejectEventRequest(
                 presence_vector=0,
@@ -351,7 +352,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.CancelEvent,
         supports_events=False)
     @_asyncio.coroutine
-    def on_cancel_event(self, message, **kwargs):
+    def on_cancel_event(self, message, source_id):
         if message.event_id in self.events:
             event = self.events[message.event_id]
             event.stop()
@@ -370,13 +371,13 @@ class Service(_jaus.Service):
         _jaus.Message.Code.QueryEvents,
         supports_events=False)
     @_asyncio.coroutine
-    def on_query_events(self, message, **kwargs):
+    def on_query_events(self, message, source_id):
         variant = message.variant
         def report_event(event):
-            return ReportEvent(
-                event_type=event.type,
-                event_id=event.id,
-                query_message=event.message._serialize_to_bytes())
+            return ReportEvents.Event(
+                type=event.type,
+                id=event.id,
+                query_message=event.message._write())
         if variant is QueryEvents.Variant.MESSAGE_ID:
             predicate = lambda event: event.message.message_code is message.message_code
         elif variant is QueryEvents.Variant.EVENT_TYPE:
@@ -390,14 +391,12 @@ class Service(_jaus.Service):
             report_event(event)
             for event in self.events.values()
             if predicate(event)]
-        return _messages.ReportEvents(
-            count=len(report),
-            events=report)
+        return ReportEvents(events=report)
 
     @_jaus.message_handler(
         _jaus.Message.Code.QueryEventTimeout,
         supports_events=False)
     @_asyncio.coroutine
-    def on_query_event_timeout(self, **kwargs):
+    def on_query_event_timeout(self, message, source_id):
         return ReportEventTimeout(
             timeout=int(self.event_timeout/60))

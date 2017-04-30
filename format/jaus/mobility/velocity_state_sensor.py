@@ -5,7 +5,7 @@ import format.jaus as _jaus
 
 
 class QueryVelocityState(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryVelocityState
+    message_code = _jaus.Message.Code.QueryVelocityState
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -23,7 +23,7 @@ class QueryVelocityState(_jaus.Message):
             ])
 
 class ReportVelocityState(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportVelocityState
+    message_code = _jaus.Message.Code.ReportVelocityState
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

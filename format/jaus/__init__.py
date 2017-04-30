@@ -227,7 +227,7 @@ class Message(_format.Specification):
             'message_code',
             enum=cls.Code,
             bytes=2, le=True,
-            default=getattr(cls, '_variant_key', NotImplemented))
+            default=getattr(cls, 'message_code', NotImplemented))
 
 def counted_bytes(name, *args, **kwargs):
     bytes = yield _format.Query(name)
@@ -250,10 +250,10 @@ class ScaledFloat(_format.Integer):
     @property
     def range(self):
         return self.upper_limit - self.lower_limit
-    def write(self, val, stream):
+    def write(self, val, stream, data):
         encoded_value = round(
-            (prop - self.lower_limit)/self.range*self.max)
-        super().write(encoded_value, stream)
+            (val - self.lower_limit)/self.range*self.max)
+        super().write(encoded_value, stream, data)
 
 class Timestamp(_format.Specification):
     @classmethod
@@ -303,7 +303,7 @@ class PresenceVector(_format.Bits):
 def counted_list(name, specification, *args, **kwargs):
     lst = yield _format.Query(name)
     count = yield _format.Integer(
-        default=len(lst) if lst else NotImplemented,
+        default=len(lst) if lst is not NotImplemented else NotImplemented,
         *args, **kwargs)
     return (yield _format.Repeat(name, specification=specification, count=count))
 

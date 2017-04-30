@@ -18,37 +18,37 @@ class EmergencyCode(_enum.Enum):
     STOP = 1
 
 class Shutdown(_jaus.Message):
-    _variant_key = _jaus.Message.Code.Shutdown
+    message_code = _jaus.Message.Code.Shutdown
 
 class Standby(_jaus.Message):
-    _variant_key = _jaus.Message.Code.Standby
+    message_code = _jaus.Message.Code.Standby
 
 class Resume(_jaus.Message):
-    _variant_key = _jaus.Message.Code.Resume
+    message_code = _jaus.Message.Code.Resume
 
 class Reset(_jaus.Message):
-    _variant_key = _jaus.Message.Code.Reset
+    message_code = _jaus.Message.Code.Reset
 
 class SetEmergency(_jaus.Message):
-    _variant_key = _jaus.Message.Code.SetEmergency
+    message_code = _jaus.Message.Code.SetEmergency
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Enum('emergency_code', enum=EmergencyCode, bytes=1)
 
 class ClearEmergency(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ClearEmergency
+    message_code = _jaus.Message.Code.ClearEmergency
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Enum('emergency_code', enum=EmergencyCode, bytes=1)
 
 class QueryStatus(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryStatus
+    message_code = _jaus.Message.Code.QueryStatus
 
 
 class ReportStatus(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportStatus
+    message_code = _jaus.Message.Code.ReportStatus
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

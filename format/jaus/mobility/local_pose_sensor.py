@@ -5,7 +5,7 @@ import format.jaus as _jaus
 
 
 class QueryLocalPose(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryLocalPose
+    message_code = _jaus.Message.Code.QueryLocalPose
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -21,7 +21,7 @@ class QueryLocalPose(_jaus.Message):
         ])
 
 class ReportLocalPose(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportLocalPose
+    message_code = _jaus.Message.Code.ReportLocalPose
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

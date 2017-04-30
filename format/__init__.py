@@ -118,10 +118,9 @@ class SpecificationMeta(_abc.ABCMeta):
         props.setdefault('_is_cached_subclass', False)
         klass = super(SpecificationMeta, meta).__new__(meta, name, bases, props)
         # Auto-register subclasses of variants in the variant system
-        if '_variant_key' in props:
-            for base in bases:
-                if base._is_variant:
-                    base._registry[props['_variant_key']] = klass
+        for base in bases:
+            if base._is_variant:
+                base._registry[props[base._variant_key_name]] = klass
         return klass
 
 class UnusedParametersError(Exception):
@@ -187,7 +186,7 @@ class Specification(metaclass=SpecificationMeta):
 
             # check we used all the fields provided
             unused_fields = set(kwargs.keys()) - fields_used
-            if len(unused_fields):
+            if len(unused_fields) > 0:
                 raise UnusedParametersError({
                     name: kwargs[name]
                     for name in unused_fields})
@@ -211,7 +210,7 @@ class Specification(metaclass=SpecificationMeta):
         if isinstance(other, type(self)):
             return all(getattr(self, f) == getattr(other, f) for f in self._fields)
         else:
-            return super().__eq__(self, other)
+            return super().__eq__(other)
     def __hash__(self):
         return hash(tuple(getattr(self, f) for f in self._fields))
     def __repr__(self):

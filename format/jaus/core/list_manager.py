@@ -22,7 +22,7 @@ class ListElementID(_format.Specification):
         yield _format.Integer('uid', bytes=2, le=True)
 
 class SetElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.SetElement
+    message_code = _jaus.Message.Code.SetElement
     @classmethod
     def _data(cls, data):
         super()._data(cls)
@@ -30,7 +30,7 @@ class SetElement(_jaus.Message):
         yield from _jaus.counted_list('elements', ListElement, bytes=1)
 
 class DeleteElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.DeleteElement
+    message_code = _jaus.Message.Code.DeleteElement
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -38,28 +38,28 @@ class DeleteElement(_jaus.Message):
         yield from _jaus.counted_list('element_ids', ListElementID, bytes=1)
 
 class QueryElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryElement
+    message_code = _jaus.Message.Code.QueryElement
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('element_uid', le=True)
 
 class QueryElementList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryElementList
+    message_code = _jaus.Message.Code.QueryElementList
 
 class QueryElementCount(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryElementCount
+    message_code = _jaus.Message.Code.QueryElementCount
 
 
 class ConfirmElementRequest(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ConfirmElementRequest
+    message_code = _jaus.Message.Code.ConfirmElementRequest
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('request_id', bytes=1)
 
 class RejectElementRequest(_jaus.Message):
-    _variant_key = _jaus.Message.Code.RejectElementRequest
+    message_code = _jaus.Message.Code.RejectElementRequest
     class ResponseCode(_enum.Enum):
         INVALID_ELEMENT_ID = 1
         INVALID_PREVIOUS_ELEMENT = 2
@@ -75,21 +75,21 @@ class RejectElementRequest(_jaus.Message):
         yield _format.Enum('response_code', enum=ResponseCode, bytes=1)
 
 class ReportElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportElement
+    message_code = _jaus.Message.Code.ReportElement
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Instance('element', ListElement)
 
 class ReportElementList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportElementList
+    message_code = _jaus.Message.Code.ReportElementList
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _jaus.counted_list('elements', ListElementID, bytes=2, le=True)
 
 class ReportElementCount(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportElementCount
+    message_code = _jaus.Message.Code.ReportElementCount
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

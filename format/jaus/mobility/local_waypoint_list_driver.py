@@ -2,10 +2,10 @@ import asyncio as _asyncio
 import format.jaus as _jaus
 
 class QueryActiveElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryActiveElement
+    message_code = _jaus.Message.Code.QueryActiveElement
 
 class ReportActiveElement(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportActiveElement
+    message_code = _jaus.Message.Code.ReportActiveElement
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

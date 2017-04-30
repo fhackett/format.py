@@ -7,34 +7,34 @@ import format.jaus.core.events as _events
 import format.jaus.core.management as _management
 
 class RequestControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.RequestControl
+    message_code = _jaus.Message.Code.RequestControl
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('authority_code', bytes=1)
 
 class ReleaseControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReleaseControl
+    message_code = _jaus.Message.Code.ReleaseControl
 
 class QueryControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryControl
+    message_code = _jaus.Message.Code.QueryControl
 
 class QueryAuthority(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryAuthority
+    message_code = _jaus.Message.Code.QueryAuthority
 
 class SetAuthority(_jaus.Message):
-    _variant_key = _jaus.Message.Code.SetAuthority
+    message_code = _jaus.Message.Code.SetAuthority
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('authority_code', bytes=1)
 
 class QueryTimeout(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryTimeout
+    message_code = _jaus.Message.Code.QueryTimeout
 
 
 class ReportControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportControl
+    message_code = _jaus.Message.Code.ReportControl
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -42,7 +42,7 @@ class ReportControl(_jaus.Message):
         yield _format.Integer('authority_code', bytes=1)
 
 class RejectControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.RejectControl
+    message_code = _jaus.Message.Code.RejectControl
     class ResponseCode(_enum.Enum):
         CONTROL_RELEASED = 0
         NOT_AVAILABLE = 1
@@ -52,7 +52,7 @@ class RejectControl(_jaus.Message):
         yield _format.Enum('response_code', enum=ResponseCode, bytes=1)
 
 class ConfirmControl(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ConfirmControl
+    message_code = _jaus.Message.Code.ConfirmControl
     class ResponseCode(_enum.Enum):
         CONTROL_ACCEPTED = 0
         NOT_AVAILABLE = 1
@@ -64,14 +64,14 @@ class ConfirmControl(_jaus.Message):
 
 
 class ReportAuthority(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportAuthority
+    message_code = _jaus.Message.Code.ReportAuthority
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('authority_code', bytes=1)
 
 class ReportTimeout(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportTimeout
+    message_code = _jaus.Message.Code.ReportTimeout
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

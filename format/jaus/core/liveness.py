@@ -4,13 +4,13 @@ import format.jaus as _jaus
 
 
 class QueryHeartbeatPulse(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryHeartbeatPulse
+    message_code = _jaus.Message.Code.QueryHeartbeatPulse
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
 
 class ReportHeartbeatPulse(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportHeartbeatPulse
+    message_code = _jaus.Message.Code.ReportHeartbeatPulse
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

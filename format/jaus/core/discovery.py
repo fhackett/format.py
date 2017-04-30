@@ -13,14 +13,14 @@ class ServiceRecord(_format.Specification):
         yield _format.Integer('minor_version', bytes=1)
 
 class RegisterServices(_jaus.Message):
-    _variant_key = _jaus.Message.Code.RegisterServices
+    message_code = _jaus.Message.Code.RegisterServices
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _jaus.counted_list('services', ServiceRecord, bytes=1)
 
 class QueryIdentification(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryIdentification
+    message_code = _jaus.Message.Code.QueryIdentification
     class QueryType(_enum.Enum):
         SYSTEM = 1
         SUBSYSTEM = 2
@@ -32,7 +32,7 @@ class QueryIdentification(_jaus.Message):
         yield _format.Enum('type', enum=QueryType, bytes=1)
 
 class QueryConfiguration(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryConfiguration
+    message_code = _jaus.Message.Code.QueryConfiguration
     class QueryType(_enum.Enum):
         SUBSYSTEM = 2
         NODE = 3
@@ -42,7 +42,7 @@ class QueryConfiguration(_jaus.Message):
         yield _format.Enum('type', enum=QueryType, bytes=1)
 
 class QuerySubsystemList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QuerySubsystemList
+    message_code = _jaus.Message.Code.QuerySubsystemList
 
 class ComponentRequest(_format.Specification):
     @classmethod
@@ -58,7 +58,7 @@ class NodeRequest(_format.Specification):
         yield from _jaus.counted_list('components', ComponentRequest, bytes=1)
 
 class QueryServices(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryServices
+    message_code = _jaus.Message.Code.QueryServices
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -91,7 +91,7 @@ class SubsystemListRequest(_format.Specification):
         yield from _jaus.counted_list('nodes', NodeListRequest, bytes=1)
 
 class QueryServiceList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryServiceList
+    message_code = _jaus.Message.Code.QueryServiceList
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -106,7 +106,7 @@ class IdentificationType(_enum.Enum):
     COMPONENT = 60001
 
 class ReportIdentification(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportIdentification
+    message_code = _jaus.Message.Code.ReportIdentification
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -129,14 +129,14 @@ class NodeConfigurationReport(_format.Specification):
         yield from _jaus.counted_list('components', ComponentConfigurationReport, bytes=1)
 
 class ReportConfiguration(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportConfiguration
+    message_code = _jaus.Message.Code.ReportConfiguration
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _jaus.counted_list('nodes', NodeConfigurationReport, bytes=1)
 
 class ReportSubsystemList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportSubsystemList
+    message_code = _jaus.Message.Code.ReportSubsystemList
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -158,7 +158,7 @@ class NodeServiceListReport(_format.Specification):
         yield from _jaus.counted_list('components', ComponentServiceListReport, bytes=1)
 
 class ReportServices(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportServices
+    message_code = _jaus.Message.Code.ReportServices
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -172,7 +172,7 @@ class SubsystemServiceListReport(_format.Specification):
         yield from _jaus.counted_list('nodes', NodeServiceListReport, bytes=1)
 
 class ReportServiceList(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportServiceList
+    message_code = _jaus.Message.Code.ReportServiceList
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)

@@ -17,14 +17,14 @@ def _local_waypoint():
         ])
 
 class SetLocalWaypoint(_jaus.Message):
-    _variant_key = _jaus.Message.Code.SetLocalWaypoint
+    message_code = _jaus.Message.Code.SetLocalWaypoint
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _local_waypoint()
 
 class QueryLocalWaypoint(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryLocalWaypoint
+    message_code = _jaus.Message.Code.QueryLocalWaypoint
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -40,10 +40,10 @@ class QueryLocalWaypoint(_jaus.Message):
         ])
 
 class QueryTravelSpeed(_jaus.Message):
-    _variant_key = _jaus.Message.Code.QueryTravelSpeed
+    message_code = _jaus.Message.Code.QueryTravelSpeed
 
 class SetTravelSpeed(_jaus.Message):
-    _variant_key = _jaus.Message.Code.SetTravelSpeed
+    message_code = _jaus.Message.Code.SetTravelSpeed
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -51,14 +51,14 @@ class SetTravelSpeed(_jaus.Message):
 
 
 class ReportLocalWaypoint(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportLocalWaypoint
+    message_code = _jaus.Message.Code.ReportLocalWaypoint
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _local_waypoint()
 
 class ReportTravelSpeed(_jaus.Message):
-    _variant_key = _jaus.Message.Code.ReportTravelSpeed
+    message_code = _jaus.Message.Code.ReportTravelSpeed
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
