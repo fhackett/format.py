@@ -1,6 +1,7 @@
 import abc as _abc
 import enum as _enum
 import asyncio as _asyncio
+from functools import wraps
 
 import format as _format
 
@@ -49,32 +50,33 @@ class ServiceMeta(_abc.ABCMeta):
         return super().__init__(name, bases, dct)
 
 class Service(metaclass=ServiceMeta):
-    def __init__(self, component, protocol, loop=None):
+    def __init__(self, component, loop=None):
         super().__init__()
         self.component = component
-        self.protocol = protocol
         self.loop = loop
         self.message_handlers = {
             message_code: getattr(self, handler_name)
-            for message_code, handler_name in self.message_handler_names
+            for message_code, handler_name in self.message_handler_names.items()
         }
-    def close(self):
+    async def close(self):
         pass
 
 class Component:
-    def __init__(self, id, protocol, name, node_name, subsystem_name, loop=None, services=[], default_authority=0):
+    def __init__(self, id, name, node_name, subsystem_name, services=[], default_authority=0, loop=None):
         self.id = id
         self.services = {}
         self.default_authority = default_authority
         self.name = name
         self.node_name = node_name
         self.subsystem_name = subsystem_name
-        self.loop = loop
+        self.loop = loop if loop is not None else _asyncio.get_event_loop()
 
+        self._listener = None
+        self._connection = None
         self.message_handlers = {}
 
         for service in services:
-            instance = service(component=self, protocol=protocol, loop=self.loop)
+            instance = service(component=self, loop=self.loop)
             self.services[instance.name] = instance
             self.message_handlers.update(instance.message_handlers)
 
@@ -84,18 +86,38 @@ class Component:
         else:
             raise AttributeError(name)
 
-    @_asyncio.coroutine
-    def dispatch_message(self, message, message_code, source_id):
-        if message_code in self.message_handlers:
-            handler = self.message_handlers[message_code]
-            return handler(message, source_id)
+    async def dispatch_message(self, message, source_id):
+        if message.message_code in self.message_handlers:
+            handler = self.message_handlers[message.message_code]
+            return await handler(message, source_id)
         else:
-            _logging.info('Failed to dispatch message code with no registered handler: {}:{}'.format(message_code, message))
-            return None
+            print('Message with no registered handler: {}'.format(message))
 
-    def close(self):
+    async def send_message(self, message, destination_id):
+        await self._connection.send_message(message._write(), destination_id=destination_id)
+
+    async def _listener_fn(self, connection, loop=None):
+        self._connection = connection
+        while True:
+            message_bytes, source_id = await connection.listen()
+            message = Message._read(message_bytes)
+            print('Message received', message, source_id)
+            result = await self.dispatch_message(message, source_id)
+            if result is not None:
+                await self.send_message(result, destination_id=source_id)
+
+    def listen(self, connection, *, loop=None):
+        if loop is None:
+            loop = _asyncio.get_event_loop()
+        assert self._listener is None
+        self._listener = loop.create_task(self._listener_fn(connection, loop=loop))
+
+    async def close(self):
+        if self._listener is not None:
+            self._listener.cancel()
+            self._listener = None
         for s in self.services.values():
-            s.close()
+            await s.close()
 
 class Message(_format.Specification):
     _variant_key_name = 'message_code'
@@ -173,11 +195,39 @@ class Message(_format.Specification):
         ReportServices = 0x4B03
         ReportServiceList = 0x4B04
 
+        ## LocalPoseSensor
+        QueryLocalPose = 0x2403
+
+        ReportLocalPose = 0x4403
+
+        ## VelocityStateSensor
+        QueryVelocityState = 0x2404
+
+        ReportVelocityState = 0x4404
+
+        ## LocalWaypointDriver
+        SetTravelSpeed = 0x040A
+        SetLocalWaypoint = 0x040D
+        QueryTravelSpeed = 0x240A
+        QueryLocalWaypoint = 0x240D
+
+        ReportTravelSpeed = 0x440A
+        ReportLocalWaypoint = 0x440D
+
+        ## LocalWaypointListDriver
+        QueryActiveElement = 0x241E
+
+        ReportActiveElement = 0x441E
+
     @classmethod
     @_abc.abstractmethod
     def _data(cls, data):
         super()._data(data)
-        yield _format.Enum('message_code', enum=Code, bytes=2, le=True)
+        yield _format.Enum(
+            'message_code',
+            enum=cls.Code,
+            bytes=2, le=True,
+            default=getattr(cls, '_variant_key', NotImplemented))
 
 def counted_bytes(name, *args, **kwargs):
     bytes = yield _format.Query(name)

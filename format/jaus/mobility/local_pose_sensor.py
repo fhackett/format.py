@@ -1,3 +1,5 @@
+import asyncio as _asyncio
+
 import format as _format
 import format.jaus as _jaus
 
@@ -40,7 +42,7 @@ class Service(_jaus.Service):
     uri = 'urn:jaus:jss:mobility:LocalPoseSensor'
     version = (1, 0)
 
-    @message_handler(_jaus.Message.Code.QueryLocalPose)
+    @_jaus.message_handler(_jaus.Message.Code.QueryLocalPose)
     @_asyncio.coroutine
     def on_query_local_pose(self, message, **kwargs):
         fields = {}

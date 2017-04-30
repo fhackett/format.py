@@ -1,3 +1,5 @@
+import asyncio as _asyncio
+import format.jaus as _jaus
 
 class QueryActiveElement(_jaus.Message):
     _variant_key = _jaus.Message.Code.QueryActiveElement

@@ -1,3 +1,6 @@
+import asyncio as _asyncio
+
+import format.jaus as _jaus
 
 def _local_waypoint():
     yield from _jaus.with_presence_vector(

@@ -1,7 +1,9 @@
 import enum as _enum
+import asyncio as _asyncio
 
 import format as _format
 import format.jaus as _jaus
+import format.jaus.core.events as _events
 
 
 class ManagementStatus(_enum.Enum):
@@ -45,7 +47,7 @@ class QueryStatus(_jaus.Message):
     _variant_key = _jaus.Message.Code.QueryStatus
 
 
-class ReportStatus(_jaus.ReportStatus):
+class ReportStatus(_jaus.Message):
     _variant_key = _jaus.Message.Code.ReportStatus
     @classmethod
     def _data(cls, data):
@@ -59,7 +61,7 @@ class Service(_jaus.Service):
     uri = 'urn:jaus:jss:core:Management'
     version = (1, 0)
 
-    status = change_watcher(
+    status = _events.change_watcher(
         '_status',
         query_codes=(_jaus.Message.Code.QueryStatus,))
 

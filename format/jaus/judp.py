@@ -280,6 +280,8 @@ class ConnectedJUDPProtocol(JUDPProtocol):
     def message_received(self, message, src_id, dst_id):
         if dst_id in self._receive_queues:
             self._receive_queues[dst_id].put_nowait((message, src_id))
+        else:
+            print('Received message with wrong destination', dst_id, 'I am', self._receive_queues.keys(), message)
     def connect(self, own_id):
         recv_queue = _asyncio.Queue(loop=self.loop)
         self._receive_queues[own_id] = recv_queue
