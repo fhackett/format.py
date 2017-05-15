@@ -1,8 +1,15 @@
 import asyncio
 import pytest
 
-from format.jaus import Component, Id
+from format.jaus import Component, Id, Message
 from format.jaus.judp import ConnectedJUDPProtocol
+
+from format.jaus.core.access_control import (
+    RequestControl,
+    ConfirmControl,
+    ReleaseControl,
+    RejectControl,
+)
 
 @pytest.fixture
 def core_component_id():
@@ -65,6 +72,33 @@ def core_component(event_loop, core_component_id, core_connection, core_service_
     component.listen(core_connection, loop=event_loop)
     yield component
     event_loop.run_until_complete(component.close())
+
+@pytest.fixture
+def recv_msg():
+    async def impl(connection, *, src_id, timeout=2):
+        reply_bytes, source_id = await connection.listen(timeout=timeout)
+        reply = Message._read(reply_bytes)
+        assert source_id == src_id
+        return reply
+    return impl
+
+@pytest.fixture
+def test_control_core_connection(test_core_connection, core_component_id, event_loop, recv_msg):
+    async def setup():
+        await test_core_connection.send_message(
+            RequestControl(authority_code=5)._write(),
+            destination_id=core_component_id)
+        reply = await recv_msg(test_core_connection, src_id=core_component_id)
+        assert reply == ConfirmControl(response_code=ConfirmControl.ResponseCode.CONTROL_ACCEPTED)
+    async def teardown():
+        await test_core_connection.send_message(
+            ReleaseControl()._write(),
+            destination_id=core_component_id)
+        await recv_msg(test_core_connection, src_id=core_component_id)
+    event_loop.run_until_complete(setup())
+    yield test_core_connection
+    # for the moment, let tests exit any old way they like (saves teardown code in tests)
+    #event_loop.run_until_complete(teardown())
 
 @pytest.fixture
 def component(core_component):

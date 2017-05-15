@@ -15,12 +15,21 @@ class RequestControl(_jaus.Message):
 
 class ReleaseControl(_jaus.Message):
     message_code = _jaus.Message.Code.ReleaseControl
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class QueryControl(_jaus.Message):
     message_code = _jaus.Message.Code.QueryControl
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class QueryAuthority(_jaus.Message):
     message_code = _jaus.Message.Code.QueryAuthority
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class SetAuthority(_jaus.Message):
     message_code = _jaus.Message.Code.SetAuthority
@@ -31,6 +40,9 @@ class SetAuthority(_jaus.Message):
 
 class QueryTimeout(_jaus.Message):
     message_code = _jaus.Message.Code.QueryTimeout
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 
 class ReportControl(_jaus.Message):
@@ -38,7 +50,7 @@ class ReportControl(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Instance('id', _jaus.Id)
+        yield _format.Instance('id', specification=_jaus.Id)
         yield _format.Integer('authority_code', bytes=1)
 
 class RejectControl(_jaus.Message):
@@ -49,7 +61,7 @@ class RejectControl(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Enum('response_code', enum=ResponseCode, bytes=1)
+        yield _format.Enum('response_code', enum=cls.ResponseCode, bytes=1)
 
 class ConfirmControl(_jaus.Message):
     message_code = _jaus.Message.Code.ConfirmControl
@@ -60,7 +72,7 @@ class ConfirmControl(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Enum('response_code', enum=ResponseCode, bytes=1)
+        yield _format.Enum('response_code', enum=cls.ResponseCode, bytes=1)
 
 
 class ReportAuthority(_jaus.Message):
@@ -98,9 +110,9 @@ class Service(_jaus.Service):
         self.timeout_routine = _asyncio.async(self._timeout_routine(), loop=self.loop)
         self.timeout = 5 # seconds
 
-    def close(self):
-        super().close()
+    async def close(self):
         self.timeout_routine.cancel()
+        await super().close()
 
     @property
     def is_controlled(self):
@@ -117,10 +129,10 @@ class Service(_jaus.Service):
                 self.reset_timeout()
                 return
             controlling_component = self.controlling_component
-            _logging.info('Control by component {} timed out'
+            print('Control by component {} timed out'
                 .format(controlling_component))
             self.controlling_component = None
-            yield from self.component.transport.send_message(
+            yield from self.component.send_message(
                 destination_id=controlling_component,
                 message=RejectControl(
                     response_code=RejectControl.ResponseCode.CONTROL_RELEASED))
@@ -133,7 +145,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.RequestControl,
         supports_events=False)
     @_asyncio.coroutine
-    def on_request_control(self, source_id, message, **kwargs):
+    def on_request_control(self, message, source_id):
         if not self.is_controlled:
             if self.control_available:
                 if self.component.default_authority > message.authority_code:
@@ -181,7 +193,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.ReleaseControl,
         supports_events=False)
     @_asyncio.coroutine
-    def on_release_control(self, source_id, **kwargs):
+    def on_release_control(self, message, source_id):
         if not self.is_controlled:
             return RejectControl(
                 response_code=RejectControl.ResponseCode.CONTROL_RELEASED)
@@ -206,7 +218,7 @@ class Service(_jaus.Service):
             self.reset_timeout()
             controlling_component = self.controlling_component
             self.controlling_component = source_id
-            yield from self.component.transport.send_message(
+            yield from self.component.send_message(
                 destination_id=controlling_component,
                 message=RejectControl(
                     response_code=RejectControl.ResponseCode.CONTROL_RELEASED))
@@ -214,25 +226,25 @@ class Service(_jaus.Service):
     @_jaus.message_handler(
         _jaus.Message.Code.QueryTimeout)
     @_asyncio.coroutine
-    def on_query_timeout(self, **kwargs):
+    def on_query_timeout(self, message, source_id):
         return ReportTimeout(
             timeout=self.timeout)
 
     @_jaus.message_handler(
         _jaus.Message.Code.QueryAuthority)
     @_asyncio.coroutine
-    def on_query_authority(self, **kwargs):
+    def on_query_authority(self, message, source_id):
         return ReportAuthority(
             authority_code=self.authority)
 
     @_jaus.message_handler(
         _jaus.Message.Code.QueryControl)
     @_asyncio.coroutine
-    def on_query_control(self, **kwargs):
+    def on_query_control(self, message, source_id):
         if self.is_controlled:
             controlling_component = self.controlling_component
         else:
-            controlling_component = _jaus.Id(0,0,0)
+            controlling_component = _jaus.Id(subsystem=0, node=0, component=0)
 
         return ReportControl(
             id=controlling_component,
@@ -242,7 +254,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.SetAuthority,
         supports_events=False)
     @_asyncio.coroutine
-    def on_set_authority(self, source_id, message, **kwargs):
+    def on_set_authority(self, message, source_id):
         # manually implement command semantics since currently
         # services can't depend on themselves
         if not self.has_control(source_id):

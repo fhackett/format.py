@@ -19,15 +19,27 @@ class EmergencyCode(_enum.Enum):
 
 class Shutdown(_jaus.Message):
     message_code = _jaus.Message.Code.Shutdown
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class Standby(_jaus.Message):
     message_code = _jaus.Message.Code.Standby
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class Resume(_jaus.Message):
     message_code = _jaus.Message.Code.Resume
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class Reset(_jaus.Message):
     message_code = _jaus.Message.Code.Reset
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class SetEmergency(_jaus.Message):
     message_code = _jaus.Message.Code.SetEmergency
@@ -45,6 +57,9 @@ class ClearEmergency(_jaus.Message):
 
 class QueryStatus(_jaus.Message):
     message_code = _jaus.Message.Code.QueryStatus
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 
 class ReportStatus(_jaus.Message):
@@ -76,7 +91,7 @@ class Service(_jaus.Service):
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_shutdown(self, **kwargs):
+    def on_shutdown(self, message, source_id):
         yield from self.component.access_control.reject_control()
         self.status = ManagementStatus.SHUTDOWN
 
@@ -85,7 +100,7 @@ class Service(_jaus.Service):
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_standby(self, **kwargs):
+    def on_standby(self, message, source_id):
         if self.status is ManagementStatus.READY:
             self.status = ManagementStatus.STANDBY
 
@@ -94,7 +109,7 @@ class Service(_jaus.Service):
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_resume(self, **kwargs):
+    def on_resume(self, message, source_id):
         # this is a command, so don't worry about not being controlled
         if self.status is ManagementStatus.STANDBY:
             self.status = ManagementStatus.READY
@@ -104,7 +119,7 @@ class Service(_jaus.Service):
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_reset(self, **kwargs):
+    def on_reset(self, message, source_id):
         if self.status in (ManagementStatus.STANDBY, ManagementStatus.READY):
             yield from self.component.access_control.reject_control()
             self.status = ManagementStatus.STANDBY
@@ -112,7 +127,7 @@ class Service(_jaus.Service):
     @_jaus.message_handler(
         _jaus.Message.Code.SetEmergency)
     @_asyncio.coroutine
-    def on_set_emergency(self, source_id, **kwargs):
+    def on_set_emergency(self, message, source_id):
         self.id_store |= set(source_id)
         if self.status is not ManagementStatus.EMERGENCY:
             self.old_status = self.status
@@ -121,7 +136,7 @@ class Service(_jaus.Service):
     @_jaus.message_handler(
         _jaus.Message.Code.ClearEmergency)
     @_asyncio.coroutine
-    def on_clear_emergency(self, source_id, **kwargs):
+    def on_clear_emergency(self, message, source_id):
         self.id_store -= set(source_id)
         if not self.id_store:
             self.status = self.old_status
@@ -129,6 +144,6 @@ class Service(_jaus.Service):
     @_jaus.message_handler(
         _jaus.Message.Code.QueryStatus)
     @_asyncio.coroutine
-    def on_query_status(self, **kwargs):
+    def on_query_status(self, message, source_id):
         return ReportStatus(
             status=self.status)

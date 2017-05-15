@@ -16,6 +16,7 @@ from format.jaus.core.events import (
     ConfirmEventRequest,
     CancelEvent,
     EventType,
+    Event,
 )
 from format.jaus.services import (
     LivenessService,
@@ -84,9 +85,10 @@ async def test__report_events__one_event(test_connection, component_id):
     event_id = await setup_event(
         test_connection,
         component_id,
-        type=EventType.PERIODIC,
+        type=EventType.EVERY_CHANGE,
         query=QueryHeartbeatPulse(),
-        request_id=1)
+        request_id=1,
+        rate=0)
 
     await test_connection.send_message(QueryEventsAll()._write(), destination_id=component_id)
 
@@ -94,54 +96,66 @@ async def test__report_events__one_event(test_connection, component_id):
     reply = Message._read(reply_bytes)
     assert reply == ReportEvents(events=[
         ReportEvents.Event(
-            type=EventType.PERIODIC,
+            type=EventType.EVERY_CHANGE,
             id=event_id,
             query_message=QueryHeartbeatPulse()._write(),
         ),
     ])
     assert source_id == component_id
 
-    await teardown_event(test_connection, component_id, event_id=event_id, request_id=2)
+    await teardown_event(test_connection, component_id, event_id=event_id, request_id=2, rate=0)
 
-"""@pytest.mark.asyncio(forbid_global_loop=True)
-def test__event_rate(connection):
+@pytest.mark.asyncio(forbid_global_loop=True)
+async def test__event_rate(test_connection, component_id):
     rate = 5
-    event_id = yield from setup_event(
-        connection,
-        type=_messages.EventType.PERIODIC,
-        query=_messages.QueryHeartbeatPulseMessage(),
+    event_id = await setup_event(
+        test_connection,
+        component_id,
+        type=EventType.PERIODIC,
+        query=QueryHeartbeatPulse(),
         request_id=1,
         rate=rate)
 
     results = []
     for i in range(20):
-        start_time = time.clock()
-        reports = yield from connection.receive_messages(
-            message_count=1,
-            types=(_messages.MessageCode.Event,))
-        results.append(time.clock() - start_time)
+        start_time = time.perf_counter()
+        reply_bytes, source_id = await test_connection.listen(timeout=2)
+        results.append(time.perf_counter() - start_time)
+        reply = Message._read(reply_bytes)
+        assert reply == Event(
+            event_id=event_id,
+            sequence_number=i,
+            report_message=ReportHeartbeatPulse()._write())
+        assert source_id == component_id
 
     assert round(sum(results)/20, 1) == round(1/5, 1)
 
-    yield from teardown_event(
-        connection,
+    await teardown_event(
+        test_connection,
+        component_id,
         event_id=event_id,
         request_id=2,
-        rate=rate)"""
-
-"""@pytest.mark.asyncio(forbid_global_loop=True)
-def test__event_timeout(connection):
-    rate = 5
-    event_id = yield from setup_event(
-        connection,
-        type=_messages.EventType.PERIODIC,
-        query=_messages.QueryHeartbeatPulseMessage(),
-        request_id=1,
         rate=rate)
 
-    results = yield from connection.receive_messages(
-        message_count=1,
-        types=(_messages.MessageCode.ConfirmEventRequest,),
-        timeout=75)
-    assert len(results) == 1
-    check_confirm_event_request(results[0], request_id=1, event_id=event_id, rate=5)"""
+@pytest.mark.asyncio(forbid_global_loop=True)
+async def test__event_timeout(test_connection, component_id, component):
+    # "fixes" event timeout so we don't have to wait a whole minute
+    component.events.event_timeout = 3
+
+    event_id = await setup_event(
+        test_connection,
+        component_id,
+        type=EventType.EVERY_CHANGE,
+        query=QueryHeartbeatPulse(),
+        request_id=1,
+        rate=0)
+
+    start_time = time.perf_counter()
+    timeout_bytes, source_id = await test_connection.listen(timeout=5)
+    timeout = Message._read(timeout_bytes)
+    assert timeout == ConfirmEventRequest(
+        request_id=1,
+        event_id=event_id,
+        confirmed_periodic_rate=0)
+    assert source_id == component_id
+    assert round(time.perf_counter()-start_time) == 3

@@ -185,7 +185,7 @@ class Event(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Integer('event_id', bytes=1),
+        yield _format.Integer('event_id', bytes=1)
         yield _format.Integer('sequence_number', bytes=1)
         yield from _jaus.counted_bytes('report_message', bytes=4, le=True)
 
@@ -261,9 +261,9 @@ class Service(_jaus.Service):
         yield from _asyncio.sleep(self.event_timeout, loop=self.loop)
         event.process.cancel()
         del self.events[event.id]
-        yield from self.component.transport.send_message(
+        yield from self.component.send_message(
             destination_id=event.destination_id,
-            message=_messages.ConfirmEventRequest(
+            message=ConfirmEventRequest(
                 request_id=event.request_id,
                 event_id=event.id,
                 confirmed_periodic_rate=event.periodic_rate))
