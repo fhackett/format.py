@@ -17,7 +17,7 @@ class ReportHeartbeatPulse(_jaus.Message):
 
 class Service(_jaus.Service):
     name = 'liveness'
-    uri = 'urn:jaus:jss:core:ListManager'
+    uri = 'urn:jaus:jss:core:Liveness'
     version = (1, 0)
 
     @_jaus.message_handler(_jaus.Message.Code.QueryHeartbeatPulse)

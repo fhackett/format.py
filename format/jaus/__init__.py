@@ -1,6 +1,7 @@
 import abc as _abc
 import enum as _enum
 import asyncio as _asyncio
+import bitstring as _bitstring
 from functools import wraps
 
 import format as _format
@@ -58,6 +59,8 @@ class Service(metaclass=ServiceMeta):
             message_code: getattr(self, handler_name)
             for message_code, handler_name in self.message_handler_names.items()
         }
+    def bootstrap(self):
+        pass
     async def close(self):
         pass
 
@@ -79,6 +82,8 @@ class Component:
             instance = service(component=self, loop=self.loop)
             self.services[instance.name] = instance
             self.message_handlers.update(instance.message_handlers)
+        for service in self.services.values():
+            service.bootstrap()
 
     def __getattr__(self, name):
         if name in self.services:
@@ -270,17 +275,16 @@ def with_presence_vector(required=[], optional=[], bits=None, bytes=None, le=Tru
         bits = 0
     if bytes is not None:
         bits += bytes*8
-    default_presence_vector = _bitstring.Bits(
-        auto=[
+    default_presence_vector = _bitstring.pack(
+        'bits:{}'.format(bits),
+        [
             (yield _format.Query(opt.name)) is not None
             for opt in optional
-        ],
-        length=bits)
+        ])
 
     presence_vector = yield _format.Bits(
         'presence_vector',
         bits=bits,
-        le=le,
         default=default_presence_vector)
     for req in required:
         yield req
@@ -310,6 +314,6 @@ def counted_list(name, specification, *args, **kwargs):
 def counted_string(name, *args, **kwargs):
     s = yield _format.Query(name)
     count = yield _format.Integer(
-        default=len(s) if s else NotImplemented,
+        default=len(s) if s is not NotImplemented else NotImplemented,
         *args, **kwargs)
     return (yield _format.String(name, length=count))

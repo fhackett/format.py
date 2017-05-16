@@ -128,7 +128,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.SetEmergency)
     @_asyncio.coroutine
     def on_set_emergency(self, message, source_id):
-        self.id_store |= set(source_id)
+        self.id_store |= {source_id}
         if self.status is not ManagementStatus.EMERGENCY:
             self.old_status = self.status
             self.status = ManagementStatus.EMERGENCY
@@ -137,7 +137,7 @@ class Service(_jaus.Service):
         _jaus.Message.Code.ClearEmergency)
     @_asyncio.coroutine
     def on_clear_emergency(self, message, source_id):
-        self.id_store -= set(source_id)
+        self.id_store -= {source_id}
         if not self.id_store:
             self.status = self.old_status
 

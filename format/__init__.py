@@ -144,9 +144,10 @@ class Specification(metaclass=SpecificationMeta):
     assert s == b'5'
     ```
 
-    The magic class attributes '_variant_key_name' and '_variant_key'
-    allow the definition of variant classes that while uninstantiatable will seamlessly replace
-    themselves with an instance of a subclass when instantiated or read.
+    The magic class attribute `_variant_key_name` allows the definition of variant
+    classes that while uninstantiatable will seamlessly replace themselves with an
+    instance of a subclass selected by the attribute whose name is the value of
+    `_variant_key_name`
 
     This makes it easy to make a class of messages that describes some common structural preamble,
     keeping all the subclasses DRY.
@@ -297,7 +298,7 @@ class Bits(Record):
     def read(self, stream, data):
         return stream.read(self.format)
     def write(self, val, stream, data):
-        stream.insert(_bitsting.Bits(val, length=self.bits))
+        stream.insert(_bitstring.Bits(val, length=self.bits))
 
 class Bytes(Record):
     representation = bytes
@@ -317,7 +318,7 @@ class String(Bytes):
         super().__init__(*args, **kwargs)
         self.encoding = encoding
     def read(self, stream, data):
-        return super().read(stream).decode(encoding=self.encoding)
+        return super().read(stream, data).decode(encoding=self.encoding)
     def write(self, val, stream, data):
         super().write(val.encode(encoding=self.encoding), stream, data)
 

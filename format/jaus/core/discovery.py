@@ -147,36 +147,36 @@ class ComponentServiceListReport(_format.Specification):
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('id', bytes=1)
-        yield _format.Int('instance_id', bytes=1, default=0)
-        yield from _jaus.counted_list('services', ServiceRecord, bytes=1)
+        yield _format.Integer('instance_id', bytes=1, default=0)
+        yield from _jaus.counted_list('services', specification=ServiceRecord, bytes=1)
 
 class NodeServiceListReport(_format.Specification):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('id', bytes=1)
-        yield from _jaus.counted_list('components', ComponentServiceListReport, bytes=1)
+        yield from _jaus.counted_list('components', specification=ComponentServiceListReport, bytes=1)
 
 class ReportServices(_jaus.Message):
     message_code = _jaus.Message.Code.ReportServices
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield from _jaus.counted_list('nodes', NodeServiceListReport, bytes=1)
+        yield from _jaus.counted_list('nodes', specification=NodeServiceListReport, bytes=1)
 
 class SubsystemServiceListReport(_format.Specification):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('id', bytes=2, le=True)
-        yield from _jaus.counted_list('nodes', NodeServiceListReport, bytes=1)
+        yield from _jaus.counted_list('nodes', specification=NodeServiceListReport, bytes=1)
 
 class ReportServiceList(_jaus.Message):
     message_code = _jaus.Message.Code.ReportServiceList
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield from _jaus.counted_list('subsystems', SubsystemServiceListReport, bytes=2, le=True)
+        yield from _jaus.counted_list('subsystems', specification=SubsystemServiceListReport, bytes=2, le=True)
 
 
 class Service(_jaus.Service):
@@ -208,14 +208,14 @@ class Service(_jaus.Service):
         _jaus.Message.Code.RegisterServices,
         supports_events=False)
     @_asyncio.coroutine
-    def on_register_services(self, source_id, message, **kwargs):
+    def on_register_services(self, message, source_id):
         records = self._get_records_for(source_id)
         records += message.services
-        _logging.debug('SERVICES: {}'.format(self.mapping))
+        print('SERVICES: {}'.format(self.mapping))
 
     @_jaus.message_handler(_jaus.Message.Code.QueryIdentification)
     @_asyncio.coroutine
-    def on_query_identification(self, message, **kwargs):
+    def on_query_identification(self, message, source_id):
         if message.type is QueryIdentification.QueryType.SUBSYSTEM:
             return ReportIdentification(
                 query_type=message.type,
@@ -234,7 +234,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryConfiguration)
     @_asyncio.coroutine
-    def on_query_configuration(self, message, **kwargs):
+    def on_query_configuration(self, message, source_id):
         if message.query_type is QueryConfiguration.QueryType.SUBSYSTEM:
             selector = lambda id: id.subsystem == self.component.id.subsystem
         elif message.query_type is QueryConfiguration.QueryType.NODE:
@@ -253,7 +253,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QuerySubsystemList)
     @_asyncio.coroutine
-    def on_query_subsystem_list(self, **kwargs):
+    def on_query_subsystem_list(self, message, source_id):
         subsystems = [
             _jaus.Id(subsystem=subsystem, node=node, component=component)
             for component in components.keys()
@@ -264,7 +264,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryServices)
     @_asyncio.coroutine
-    def on_query_services(self, message, **kwargs):
+    def on_query_services(self, message, source_id):
         # bow before my nested list comprehensions of glory
         return ReportServices(
             nodes=[
@@ -282,7 +282,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryServiceList)
     @_asyncio.coroutine
-    def on_query_service_list(self, message, **kwargs):
+    def on_query_service_list(self, message, source_id):
         # bow more so to the extra level of nesting :P
         return ReportServiceList(
             subsystems=[

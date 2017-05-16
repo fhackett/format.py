@@ -98,7 +98,7 @@ class ReportElementCount(_jaus.Message):
 
 class Service(_jaus.Service):
     name = 'list_manager'
-    uri = 'urn:jaus:jss:core:Liveness'
+    uri = 'urn:jaus:jss:core:ListManager'
     version = (1, 0)
 
     def __init__(self, *args, **kwargs):
