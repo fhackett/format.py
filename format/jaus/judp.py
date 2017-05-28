@@ -1,7 +1,13 @@
 import enum as _enum
 import format as _format
 import asyncio as _asyncio
+import socket as _socket
+import struct as _struct
 
+#MULTICAST_ADDR = '239.255.0.1'
+MULTICAST_ADDR = '224.3.29.71'
+PORT = 3794
+MAX_PAYLOAD_SIZE = 512
 
 class Packet(_format.Specification):
     class DataFlags(_enum.Enum):
@@ -71,12 +77,8 @@ class Payload(_format.Specification):
         assert version == 2
         yield _format.Consume('packets', specification=Packet)
 
-MAX_PAYLOAD_SIZE = 512
-
-
-
 class JUDPProtocol(_asyncio.DatagramProtocol):
-    def __init__(self, loop=None):
+    def __init__(self, loop=None, multicast_addr=MULTICAST_ADDR, multicast_port=PORT):
         super().__init__()
         if loop is None:
             loop = _asyncio.get_event_loop()
@@ -87,6 +89,9 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         self.routings = {}
         self._send_queue = []
         self._sequence_numbers = {}
+        self.multicast_addr = multicast_addr
+        self.multicast_port = multicast_port
+
         async def sender():
             while True:
                 self._send_packets(self._send_queue)
@@ -95,8 +100,10 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         self._sender = _asyncio.ensure_future(sender(), loop=self.loop)
 
     def _find_destination_addr(self, packet):
-        # TODO add broadcast options
-        return self.routings[packet.destination_id]
+        if packet.broadcast in (Packet.BroadcastFlags.LOCAL, Packet.BroadcastFlags.GLOBAL):
+            return (self.multicast_addr, self.multicast_port)
+        else:
+            return self.routings[packet.destination_id]
 
     def _generate_next_sequence_number(self, source_id, destination_id):
         index = (source_id, destination_id)
@@ -194,6 +201,17 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
 
     def connection_made(self, transport):
         self.transport = transport
+        # thanks, reddit!
+        # https://www.reddit.com/r/learnpython/comments/4drk0a/asyncio_multicast_udp_socket_on_342/
+
+        # Allow receiving multicast broadcasts on the JAUS multicast group
+        sock = self.transport.get_extra_info('socket')
+        group = _socket.inet_aton(MULTICAST_ADDR)
+        mreq = _struct.pack('4sL', group, _socket.INADDR_ANY)
+        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_ADD_MEMBERSHIP, mreq)
+        # Also allow sending
+        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_MULTICAST_TTL, 32)
+        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_MULTICAST_LOOP, 1)
 
     def _find_first_packet(self, packet, dct):
         while packet is not None and packet.data_flags is not Packet.DataFlags.FIRST_PACKET:
@@ -262,14 +280,16 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
 
 class ConnectedJUDPProtocol(JUDPProtocol):
     class Connection:
-        def __init__(self, protocol, recv_queue, own_id):
+        def __init__(self, protocol, recv_queue, own_id, loop):
             self.protocol = protocol
             self.recv_queue = recv_queue
             self.own_id = own_id
+            self.loop = loop
         async def listen(self, timeout=None):
             return (await _asyncio.wait_for(
                 self.recv_queue.get(),
-                timeout=timeout))
+                timeout=timeout,
+		loop=self.loop))
         async def send_message(self, contents, **kwargs):
             result = self.protocol.send_message(contents, source_id=self.own_id, **kwargs)
             if result is not None:
@@ -285,4 +305,4 @@ class ConnectedJUDPProtocol(JUDPProtocol):
     def connect(self, own_id):
         recv_queue = _asyncio.Queue(loop=self.loop)
         self._receive_queues[own_id] = recv_queue
-        return ConnectedJUDPProtocol.Connection(self, recv_queue, own_id)
+        return ConnectedJUDPProtocol.Connection(self, recv_queue, own_id, self.loop)
