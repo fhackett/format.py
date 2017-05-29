@@ -4,8 +4,7 @@ import asyncio as _asyncio
 import socket as _socket
 import struct as _struct
 
-#MULTICAST_ADDR = '239.255.0.1'
-MULTICAST_ADDR = '224.3.29.71'
+MULTICAST_ADDR = '239.255.0.1'
 PORT = 3794
 MAX_PAYLOAD_SIZE = 512
 
@@ -77,6 +76,20 @@ class Payload(_format.Specification):
         assert version == 2
         yield _format.Consume('packets', specification=Packet)
 
+def make_multicast_socket(port=PORT, mgroup=MULTICAST_ADDR):
+    s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM, _socket.IPPROTO_IP)
+    s.setsockopt(_socket.IPPROTO_IP, _socket.SO_REUSEADDR, 1)
+    s.setsockopt(_socket.IPPROTO_IP, _socket.IP_MULTICAST_LOOP, 1)
+    s.bind(('', port))
+    s.setsockopt(
+            _socket.IPPROTO_IP,
+            _socket.IP_ADD_MEMBERSHIP,
+            _struct.pack(
+                '4sL',
+                _socket.inet_aton(mgroup),
+                _socket.INADDR_ANY))
+    return s
+
 class JUDPProtocol(_asyncio.DatagramProtocol):
     def __init__(self, loop=None, multicast_addr=MULTICAST_ADDR, multicast_port=PORT):
         super().__init__()
@@ -84,6 +97,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
             loop = _asyncio.get_event_loop()
         self._accumulators = {}
         self._resolvers = {}
+        self._senders = {}
         self.loop = loop
         self.transport = None
         self.routings = {}
@@ -112,7 +126,13 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         return n
 
     def _send_packets(self, packets):
+        for p in packets:
+            senders = self._senders.setdefault(p.destination_id, {})
+            if p.sequence_number in senders:
+                senders[p.sequence_number].set_result(None)
+                del senders[p.sequence_number]
         for addr, payload in self._make_payloads(packets):
+            print('Sending to {} payload {}'.format(addr, payload))
             self.transport.sendto(payload._write(), addr)
 
     def _send_packet(self, packet):
@@ -121,6 +141,11 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
             resolvers = self._resolvers.setdefault(packet.destination_id, {})
             resp = self.loop.create_future()
             resolvers[packet.sequence_number] = resp
+            return resp
+        else:
+            senders = self._senders.setdefault(packet.destination_id, {})
+            resp = self.loop.create_future()
+            senders[packet.sequence_number] = resp
             return resp
 
     def _split_into_packets(self, contents, **kwargs):
@@ -180,8 +205,9 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
                 _asyncio.gather(*[check_send(packet) for packet in packets], loop=self.loop),
                 loop=self.loop)
         else:
-            for packet in packets:
-                self._send_packet(packet)
+            return _asyncio.ensure_future(
+                _asyncio.gather(*(self._send_packet(p) for p in packets), loop=self.loop),
+                loop=self.loop)
 
     def _calculate_payload_size(self, packets):
         return sum(packet.data_size for packet in packets) + 1
@@ -201,17 +227,6 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
 
     def connection_made(self, transport):
         self.transport = transport
-        # thanks, reddit!
-        # https://www.reddit.com/r/learnpython/comments/4drk0a/asyncio_multicast_udp_socket_on_342/
-
-        # Allow receiving multicast broadcasts on the JAUS multicast group
-        sock = self.transport.get_extra_info('socket')
-        group = _socket.inet_aton(MULTICAST_ADDR)
-        mreq = _struct.pack('4sL', group, _socket.INADDR_ANY)
-        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_ADD_MEMBERSHIP, mreq)
-        # Also allow sending
-        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_MULTICAST_TTL, 32)
-        sock.setsockopt(_socket.IPPROTO_IP, _socket.IP_MULTICAST_LOOP, 1)
 
     def _find_first_packet(self, packet, dct):
         while packet is not None and packet.data_flags is not Packet.DataFlags.FIRST_PACKET:
@@ -267,6 +282,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         payload = Payload._read(data)
+        print('Payload received from {}, {}'.format(addr, payload))
         for packet in payload.packets:
             self._packet_received(packet, addr)
 
@@ -291,9 +307,7 @@ class ConnectedJUDPProtocol(JUDPProtocol):
                 timeout=timeout,
 		loop=self.loop))
         async def send_message(self, contents, **kwargs):
-            result = self.protocol.send_message(contents, source_id=self.own_id, **kwargs)
-            if result is not None:
-                await result
+            await self.protocol.send_message(contents, source_id=self.own_id, **kwargs)
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._receive_queues = {}

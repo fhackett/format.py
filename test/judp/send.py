@@ -1,14 +1,11 @@
 import asyncio
-from format.jaus.judp import ConnectedJUDPProtocol, Packet
+from format.jaus.judp import ConnectedJUDPProtocol, Packet, make_multicast_socket
 from format.jaus import Id
-import socket
 
 async def main(loop):
     _, protocol = await loop.create_datagram_endpoint(
             lambda: ConnectedJUDPProtocol(loop=loop),
-            local_addr=(None, 5001),
-            family=socket.AF_INET,
-            allow_broadcast=True)
+            sock=make_multicast_socket(port=5002))
     con = protocol.connect(Id(subsystem=1, node=1, component=1))
     await con.send_message(b'aaaa',
             destination_id=Id(subsystem=2, node=2, component=2),
