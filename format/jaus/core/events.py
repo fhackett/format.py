@@ -18,7 +18,7 @@ def change_watcher(backing, query_codes):
     @prop.setter
     def prop(self, val):
         if val != getattr(self, backing):
-            _asyncio.async(
+            _asyncio.ensure_future(
                 self.component.events.post_change(message_codes=query_codes),
                 loop=self.loop)
         setattr(self, backing, val)
@@ -308,8 +308,8 @@ class Service(_jaus.Service):
             message=_jaus.Message._read(
                 message.query_message),
             type=message.event_type,
-            timeout=_asyncio.async(self._event_timeout(event_id), loop=self.loop),
-            process=_asyncio.async(self._process_event(event_id), loop=self.loop),
+            timeout=_asyncio.ensure_future(self._event_timeout(event_id), loop=self.loop),
+            process=_asyncio.ensure_future(self._process_event(event_id), loop=self.loop),
             periodic_rate=periodic_rate,
             request_id=message.request_id)
         self.events[event_id] = event
@@ -337,8 +337,8 @@ class Service(_jaus.Service):
             destination_id=source_id,
             message=_jaus.Message._read(message.query_message),
             type=message.event_type,
-            timeout=_asyncio.async(timeout, loop=self.loop),
-            process=_asyncio.async(process, loop=self.loop),
+            timeout=_asyncio.ensure_future(timeout, loop=self.loop),
+            process=_asyncio.ensure_future(process, loop=self.loop),
             periodic_rate=periodic_rate,
             request_id=message.request_id)
         self.events[message.event_id].stop()

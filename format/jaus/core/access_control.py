@@ -107,7 +107,7 @@ class Service(_jaus.Service):
         super().__init__(*args, **kwargs)
         self._controlling_component = None
         self._authority = self.component.default_authority
-        self.timeout_routine = _asyncio.async(self._timeout_routine(), loop=self.loop)
+        self.timeout_routine = _asyncio.ensure_future(self._timeout_routine(), loop=self.loop)
         self.timeout = 5 # seconds
 
     async def close(self):
@@ -139,7 +139,7 @@ class Service(_jaus.Service):
 
     def reset_timeout(self):
         self.timeout_routine.cancel()
-        self.timeout_routine = _asyncio.async(self._timeout_routine(), loop=self.loop)
+        self.timeout_routine = _asyncio.ensure_future(self._timeout_routine(), loop=self.loop)
 
     @_jaus.message_handler(
         _jaus.Message.Code.RequestControl,
