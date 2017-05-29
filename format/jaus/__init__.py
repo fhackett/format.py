@@ -33,9 +33,9 @@ def is_command(fn):
     """
     @wraps(fn)
     @_asyncio.coroutine
-    def wrapper(self, source_id, **kwargs):
+    def wrapper(self, message, source_id):
         if self.component.access_control.has_control(source_id):
-            return (yield from fn(self, source_id=source_id, **kwargs))
+            return (yield from fn(self, message, source_id))
         else:
             # ignore commands with insufficient authority
             return None
@@ -270,39 +270,44 @@ class Timestamp(_format.Specification):
         yield ScaledFloat('hr', bits=5, lower_limit=0, upper_limit=23)
         yield ScaledFloat('day', bits=5, lower_limit=1, upper_limit=31)
 
-def with_presence_vector(required=[], optional=[], bits=None, bytes=None, le=True):
-    if bits is None:
-        bits = 0
-    if bytes is not None:
-        bits += bytes*8
-    default_presence_vector = _bitstring.pack(
-        'bits:{}'.format(bits),
-        [
-            (yield _format.Query(opt.name)) is not None
-            for opt in optional
-        ])
+class DumbRecord(_format.Record):
+    def read(self, stream, data):
+        return None
+    def write(self, val, stream, data):
+        pass
 
-    presence_vector = yield _format.Bits(
-        'presence_vector',
-        bits=bits,
-        default=default_presence_vector)
+def with_presence_vector(*, name='presence_vector', optional, required=[], **kwargs):
+    default_presence_vector = set()
+    for opt in optional:
+        if (yield _format.Query(opt.name)) is not NotImplemented:
+            default_presence_vector.add(opt.name)
+    presence_vector = yield PresenceVector(
+            name,
+            fields=[opt.name for opt in optional],
+            default=default_presence_vector,
+            **kwargs)
     for req in required:
         yield req
-    for present, opt in zip(presence_vector, optional):
-        if present:
+    for opt in optional:
+        if opt.name in presence_vector:
             yield opt
         else:
-            yield _format.Record(opt.name, default=None)
+            yield DumbRecord(opt.name, default=None)
 
 class PresenceVector(_format.Bits):
+    representation = set
     def __init__(self, name, fields, *args, **kwargs):
         super().__init__(name, *args, **kwargs)
         self.fields = fields
     def read(self, *args, **kwargs):
         mask = super().read(*args, **kwargs)
         return {field for field, present in zip(self.fields, mask) if present}
-    def write(self, val, stream):
-        super().write(_bitstring.Bits(field in val for field in self.fields))
+    def write(self, val, stream, data):
+        output = _bitstring.BitArray(length=self.bits)
+        for i, field in enumerate(self.fields):
+            if field in val:
+                output[i] = 1
+        super().write(output, stream, data)
 
 def counted_list(name, specification, *args, **kwargs):
     lst = yield _format.Query(name)

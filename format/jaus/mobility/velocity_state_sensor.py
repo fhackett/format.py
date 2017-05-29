@@ -2,6 +2,7 @@ import asyncio as _asyncio
 
 import format as _format
 import format.jaus as _jaus
+import math
 
 
 class QueryVelocityState(_jaus.Message):
@@ -38,7 +39,7 @@ class ReportVelocityState(_jaus.Message):
                 _jaus.ScaledFloat('pitch', bytes=2, le=True, lower_limit=-32.768, upper_limit=32.767),
                 _jaus.ScaledFloat('yaw_rate', bytes=2, le=True, lower_limit=-32.768, upper_limit=32.767),
                 _jaus.ScaledFloat('angular_rms', bytes=2, le=True, lower_limit=0, upper_limit=math.pi),
-                _format.Instance('timestamp', _jaus.Timestamp),
+                _format.Instance('timestamp', specification=_jaus.Timestamp),
             ])
 
 class Service(_jaus.Service):
@@ -48,7 +49,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryVelocityState)
     @_asyncio.coroutine
-    def on_query_velocity_state(self, message, **kwargs):
+    def on_query_velocity_state(self, message, src_id):
         fields = {}
         if 'x' in message.presence_vector:
             fields['x'] = 0

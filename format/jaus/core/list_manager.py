@@ -4,16 +4,26 @@ import asyncio as _asyncio
 import format as _format
 import format.jaus as _jaus
 
+import format.jaus.core._list_manager as _list_manager
+
+class ListElementType(_enum.Enum):
+    JAUS_MESSAGE = 0
+    USER_DATA = 1
+
+def _element_rec(): 
+    yield _format.Integer('uid', bytes=2, le=True)
+    yield _format.Integer('prev', bytes=2, le=True)
+    yield _format.Integer('next', bytes=2, le=True)
+    yield _format.Enum('format', enum=ListElementType, bytes=1, default=ListElementType.USER_DATA)
+    # this is a variable format field apparently...
+    # (only instance I've ever seen of one)
+    yield from _jaus.counted_bytes('data', bytes=2, le=True)
 
 class ListElement(_format.Specification):
     @classmethod
     def _data(cls, data):
         super()._data(data)
-        yield _format.Integer('uid', bytes=2, le=True)
-        yield _format.Integer('prev', bytes=2, le=True)
-        yield _format.Integer('next', bytes=2, le=True)
-        yield _format.Integer('format', bytes=1, default=0) # this is a variable format field apparently...
-        yield from _jaus.counted_bytes('data', bytes=2, le=True)
+        yield from _element_rec()
 
 class ListElementID(_format.Specification):
     @classmethod
@@ -25,7 +35,7 @@ class SetElement(_jaus.Message):
     message_code = _jaus.Message.Code.SetElement
     @classmethod
     def _data(cls, data):
-        super()._data(cls)
+        yield from super()._data(cls)
         yield _format.Integer('request_id', bytes=1)
         yield from _jaus.counted_list('elements', ListElement, bytes=1)
 
@@ -42,13 +52,19 @@ class QueryElement(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Integer('element_uid', le=True)
+        yield _format.Integer('element_uid', bytes=2, le=True)
 
 class QueryElementList(_jaus.Message):
     message_code = _jaus.Message.Code.QueryElementList
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class QueryElementCount(_jaus.Message):
     message_code = _jaus.Message.Code.QueryElementCount
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 
 class ConfirmElementRequest(_jaus.Message):
@@ -72,14 +88,14 @@ class RejectElementRequest(_jaus.Message):
     def _data(cls, data):
         yield from super()._data(data)
         yield _format.Integer('request_id', bytes=1)
-        yield _format.Enum('response_code', enum=ResponseCode, bytes=1)
+        yield _format.Enum('response_code', enum=cls.ResponseCode, bytes=1)
 
 class ReportElement(_jaus.Message):
     message_code = _jaus.Message.Code.ReportElement
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Instance('element', ListElement)
+        yield from _element_rec()
 
 class ReportElementList(_jaus.Message):
     message_code = _jaus.Message.Code.ReportElementList
@@ -108,28 +124,28 @@ class Service(_jaus.Service):
     @_jaus.message_handler(
         _jaus.Message.Code.QueryElement)
     @_asyncio.coroutine
-    def on_query_element(self, message, **kwargs):
+    def on_query_element(self, message, source_id):
         element = self._impl.get(message.element_uid)
         if element is not None:
             return ReportElement(
-                uid=element.UID,
-                previous_uid=element.previousUID,
-                next_uid=element.nextUID,
+                uid=element.uid,
+                prev=element.prev,
+                next=element.next,
                 data=element.data)
 
     @_jaus.message_handler(
         _jaus.Message.Code.QueryElementList)
     @_asyncio.coroutine
-    def on_query_element_list(self, **kwargs):
+    def on_query_element_list(self, message, source_id):
         return ReportElementList(
             elements=[
-                element.uid
+                ListElementID(uid=element.uid)
                 for element in _list_manager.to_list(self._impl)])
 
     @_jaus.message_handler(
         _jaus.Message.Code.QueryElementCount)
     @_asyncio.coroutine
-    def on_query_element_count(self, **kwargs):
+    def on_query_element_count(self, message, source_id):
         return ReportElementCount(
             element_count=self._impl.count)
 
@@ -138,7 +154,7 @@ class Service(_jaus.Service):
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_set_element(self, message, **kwargs):
+    def on_set_element(self, message, source_id):
         def rejection(response_code):
             return RejectElementRequest(
                 request_id=message.request_id,
@@ -152,34 +168,34 @@ class Service(_jaus.Service):
                 request_id=message.request_id)
         except _list_manager.BrokenReference as e:
             if e.uid == e.element.next:
-                return rejection(RejectEventRequest.ResponseCode.INVALID_NEXT_ELEMENT)
+                return rejection(RejectElementRequest.ResponseCode.INVALID_NEXT_ELEMENT)
             else:
-                return rejection(RejectEventRequest.ResponseCode.INVALID_PREVIOUS_ELEMENT)
+                return rejection(RejectElementRequest.ResponseCode.INVALID_PREVIOUS_ELEMENT)
         except _list_manager.ElementAlreadyExists:
-            return rejection(RejectEventRequest.ResponseCode.INVALID_ELEMENT_ID)
+            return rejection(RejectElementRequest.ResponseCode.INVALID_ELEMENT_ID)
         except _list_manager.ListError:
-            return rejection(RejectEventRequest.ResponseCode.UNSPECIFIED_ERROR)
+            return rejection(RejectElementRequest.ResponseCode.UNSPECIFIED_ERROR)
 
     @_jaus.message_handler(
         _jaus.Message.Code.DeleteElement,
         is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_delete_element(self, message, **kwargs):
+    def on_delete_element(self, message, source_id):
         def rejection(response_code):
             return RejectElementRequest(
                 request_id=message.request_id,
                 response_code=response_code)
         try:
-            self._impl.delete_batch(message.element_ids)
+            self._impl.delete_batch(e.uid for e in message.element_ids)
             return ConfirmElementRequest(
                 request_id=message.request_id)
         except _list_manager.BrokenReference as e:
             if e.uid == e.element.next:
-                return rejection(RejectEventRequest.ResponseCode.INVALID_NEXT_ELEMENT)
+                return rejection(RejectElementRequest.ResponseCode.INVALID_NEXT_ELEMENT)
             else:
-                return rejection(RejectEventRequest.ResponseCode.INVALID_PREVIOUS_ELEMENT)
+                return rejection(RejectElementRequest.ResponseCode.INVALID_PREVIOUS_ELEMENT)
         except _list_manager.NoSuchElement:
-            return rejection(RejectEventRequest.ResponseCode.INVALID_ELEMENT_ID)
+            return rejection(RejectElementRequest.ResponseCode.INVALID_ELEMENT_ID)
         except _list_manager.ListError:
-            return rejection(RejectEventRequest.ResponseCode.UNSPECIFIED_ERROR)
+            return rejection(RejectElementRequest.ResponseCode.UNSPECIFIED_ERROR)

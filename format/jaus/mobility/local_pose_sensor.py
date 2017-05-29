@@ -1,4 +1,5 @@
 import asyncio as _asyncio
+import math
 
 import format as _format
 import format.jaus as _jaus
@@ -34,7 +35,7 @@ class ReportLocalPose(_jaus.Message):
             _jaus.ScaledFloat('pitch', bytes=2, le=True, lower_limit=-math.pi, upper_limit=math.pi),
             _jaus.ScaledFloat('yaw', bytes=2, le=True, lower_limit=-math.pi, upper_limit=math.pi),
             _jaus.ScaledFloat('attitude_rms', bytes=2, le=True, lower_limit=0, upper_limit=math.pi),
-            _format.Instance('timestamp', _jaus.Timestamp),
+            _format.Instance('timestamp', specification=_jaus.Timestamp),
         ])
 
 class Service(_jaus.Service):
@@ -44,7 +45,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalPose)
     @_asyncio.coroutine
-    def on_query_local_pose(self, message, **kwargs):
+    def on_query_local_pose(self, message, source_id):
         fields = {}
         if 'x' in message.presence_vector:
             fields['x'] = 0
@@ -52,6 +53,6 @@ class Service(_jaus.Service):
             fields['y'] = 0
         if 'yaw' in message.presence_vector:
             fields['yaw'] = 0
-        if 'timestamp' in message.presence_vectore:
+        if 'timestamp' in message.presence_vector:
             fields['timestamp'] = Timestamp(ms=0, sec=0, min=0, hr=0, day=0)
         return ReportLocalPose(**fields)

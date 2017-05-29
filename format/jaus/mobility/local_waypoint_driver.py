@@ -1,4 +1,5 @@
 import asyncio as _asyncio
+import math
 
 import format.jaus as _jaus
 
@@ -41,6 +42,9 @@ class QueryLocalWaypoint(_jaus.Message):
 
 class QueryTravelSpeed(_jaus.Message):
     message_code = _jaus.Message.Code.QueryTravelSpeed
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class SetTravelSpeed(_jaus.Message):
     message_code = _jaus.Message.Code.SetTravelSpeed
@@ -78,7 +82,7 @@ class Service(_jaus.Service):
     @_jaus.message_handler(_jaus.Message.Code.SetLocalWaypoint, is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_set_local_waypoint(self, message, **kwargs):
+    def on_set_local_waypoint(self, message, src_id):
         if message.x is not None:
             self.x = message.x
         if message.y is not None:
@@ -86,7 +90,7 @@ class Service(_jaus.Service):
 
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalWaypoint)
     @_asyncio.coroutine
-    def on_query_local_waypoint(self, message, **kwargs):
+    def on_query_local_waypoint(self, message, src_id):
         fields = {}
         if 'x' in message.presence_vector:
             fields['x'] = self.x
@@ -97,10 +101,10 @@ class Service(_jaus.Service):
     @_jaus.message_handler(_jaus.Message.Code.SetTravelSpeed, is_command=True)
     @_jaus.is_command
     @_asyncio.coroutine
-    def on_set_travel_speed(self, message, **kwargs):
+    def on_set_travel_speed(self, message, src_id):
         self.travel_speed = message.speed
 
     @_jaus.message_handler(_jaus.Message.Code.QueryTravelSpeed)
     @_asyncio.coroutine
-    def on_query_travel_speed(self, **kwargs):
+    def on_query_travel_speed(self, message, src_id):
         return ReportTravelSpeed(speed=self.travel_speed)

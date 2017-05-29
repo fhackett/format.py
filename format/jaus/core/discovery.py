@@ -69,6 +69,7 @@ class ComponentListRequest(_format.Specification):
     def _data(cls, data):
         yield from super()._data(data)
         yield from _jaus.with_presence_vector(
+            bytes=1,
             required=[
                 _format.Integer('id', bytes=1),
             ],
