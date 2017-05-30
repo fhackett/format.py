@@ -1,5 +1,4 @@
 import asyncio as _asyncio
-
 import format as _format
 import format.jaus as _jaus
 import math
@@ -7,6 +6,7 @@ import math
 
 class QueryVelocityState(_jaus.Message):
     message_code = _jaus.Message.Code.QueryVelocityState
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -23,8 +23,10 @@ class QueryVelocityState(_jaus.Message):
                 'timestamp',
             ])
 
+
 class ReportVelocityState(_jaus.Message):
     message_code = _jaus.Message.Code.ReportVelocityState
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -42,7 +44,12 @@ class ReportVelocityState(_jaus.Message):
                 _format.Instance('timestamp', specification=_jaus.Timestamp),
             ])
 
+
 class Service(_jaus.Service):
+    """
+    Responsible for reporting the instantaneous velocity of the platform
+    """
+
     name = 'velocity_state_sensor'
     uri = 'urn:jaus:jss:mobility:VelocityStateSensor'
     version = (1, 0)

@@ -1,12 +1,12 @@
-import asyncio as _asyncio
-import math
-
 import format as _format
 import format.jaus as _jaus
+import asyncio as _asyncio
+import math
 
 
 class QueryLocalPose(_jaus.Message):
     message_code = _jaus.Message.Code.QueryLocalPose
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -21,8 +21,10 @@ class QueryLocalPose(_jaus.Message):
             'attitude_rms',
         ])
 
+
 class ReportLocalPose(_jaus.Message):
     message_code = _jaus.Message.Code.ReportLocalPose
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -38,7 +40,12 @@ class ReportLocalPose(_jaus.Message):
             _format.Instance('timestamp', specification=_jaus.Timestamp),
         ])
 
+
 class Service(_jaus.Service):
+    """
+    Responsible for reporting the local position and orientation of the platform relative to a local reference frame.
+    """
+
     name = 'local_pose_sensor'
     uri = 'urn:jaus:jss:mobility:LocalPoseSensor'
     version = (1, 0)
