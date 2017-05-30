@@ -4,37 +4,73 @@ import asyncio as _asyncio
 import socket as _socket
 import struct as _struct
 
+
 MULTICAST_ADDR = '239.255.0.1'
 PORT = 3794
 MAX_PAYLOAD_SIZE = 512
 
+
 class Packet(_format.Specification):
+
     class DataFlags(_enum.Enum):
+        """
+        Messages larger than the Maximum Packet Size will be broken up into smaller packets and re-ensemble.
+
+        For any fragmented set of packets:
+            First packet will have a value of 0b01
+            Last packet will have a value of 0b11
+            All packets in between will have the value 0b10
+
+        If the message is under the Maximum Packet Size, the single packet will have a value of 0b00.
+        """
         SINGLE_PACKET = 0b00
         FIRST_PACKET = 0b01
         NORMAL_PACKET = 0b10
         LAST_PACKET = 0b11
+
     class HCFlags(_enum.Enum):
+        """
+        Indicates the type of Header Compression protocol
+
+        NONE: No header compression used
+        REQUESTED: Sender requests receiver to engage in header compression
+        HC_LENGTH: Meaning of a message?
+        COMPRESSED: Sender is sending compressed data; HC header number and HC_LENGTH will also be present
+
+        If there is no compression, the HC_NUMBER and HC_LENGTH will be removed from the General Transport Header
+        """
         NONE = 0
         REQUESTED = 1
         HC_LENGTH = 2
         COMPRESSED = 3
+
     class Priority(_enum.Enum):
+        """
+        Signifies the different priority level of a message; the handling of Priority is implementation dependent.
+        """
         LOW = 0
         STANDARD = 1
         HIGH = 2
         SAFETY = 3
+
     class BroadcastFlags(_enum.Enum):
-        # single destination
+        """
+        Mark messages that are indended for multiple destinations
+
+        NONE: Single destination
+        LOCAL: Local destination only
+        GLOBAL: All destinations
+        """
         NONE = 0
-        # local destinations only
         LOCAL = 1
-        # all destinations
         GLOBAL = 2
+
     class ACKNACKFlags(_enum.Enum):
+        """
+        Signifies the ACK/NAK behavior when a message is transmitted.
+        """
         NO_RESPONSE_REQUIRED = 0
         RESPONSE_REQUIRED = 1
-        # Responses
         NACK = 2
         ACK = 3
 
@@ -68,6 +104,7 @@ class Packet(_format.Specification):
             length=data_size-packet_overhead)
         yield _format.Integer('sequence_number', bytes=2, le=True)
 
+
 class Payload(_format.Specification):
     @classmethod
     def _data(self, data):
@@ -75,6 +112,7 @@ class Payload(_format.Specification):
         # We only support transport version 2
         assert version == 2
         yield _format.Consume('packets', specification=Packet)
+
 
 def make_multicast_socket(port=PORT, mgroup=MULTICAST_ADDR):
     s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM, _socket.IPPROTO_IP)
@@ -90,7 +128,9 @@ def make_multicast_socket(port=PORT, mgroup=MULTICAST_ADDR):
                 _socket.INADDR_ANY))
     return s
 
+
 class JUDPProtocol(_asyncio.DatagramProtocol):
+
     def __init__(self, loop=None, multicast_addr=MULTICAST_ADDR, multicast_port=PORT):
         super().__init__()
         if loop is None:
@@ -294,6 +334,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
         self.transport.close()
         await _asyncio.sleep(0, loop=self.loop)
 
+
 class ConnectedJUDPProtocol(JUDPProtocol):
     class Connection:
         def __init__(self, protocol, recv_queue, own_id, loop):
@@ -301,21 +342,26 @@ class ConnectedJUDPProtocol(JUDPProtocol):
             self.recv_queue = recv_queue
             self.own_id = own_id
             self.loop = loop
+
         async def listen(self, timeout=None):
             return (await _asyncio.wait_for(
                 self.recv_queue.get(),
                 timeout=timeout,
-		loop=self.loop))
+                loop=self.loop))
+
         async def send_message(self, contents, **kwargs):
             await self.protocol.send_message(contents, source_id=self.own_id, **kwargs)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._receive_queues = {}
+
     def message_received(self, message, src_id, dst_id):
         if dst_id in self._receive_queues:
             self._receive_queues[dst_id].put_nowait((message, src_id))
         else:
             print('Received message with wrong destination', dst_id, 'I am', self._receive_queues.keys(), message)
+
     def connect(self, own_id):
         recv_queue = _asyncio.Queue(loop=self.loop)
         self._receive_queues[own_id] = recv_queue
