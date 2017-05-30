@@ -1,7 +1,7 @@
+import format.jaus as _jaus
 import asyncio as _asyncio
 import math
 
-import format.jaus as _jaus
 
 def _local_waypoint():
     yield from _jaus.with_presence_vector(
@@ -17,15 +17,19 @@ def _local_waypoint():
             _jaus.ScaledFloat('path_tolerance', bytes=4, le=True, lower_limit=0, upper_limit=100000),
         ])
 
+
 class SetLocalWaypoint(_jaus.Message):
     message_code = _jaus.Message.Code.SetLocalWaypoint
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _local_waypoint()
 
+
 class QueryLocalWaypoint(_jaus.Message):
     message_code = _jaus.Message.Code.QueryLocalWaypoint
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -40,14 +44,18 @@ class QueryLocalWaypoint(_jaus.Message):
             'path_tolerance',
         ])
 
+
 class QueryTravelSpeed(_jaus.Message):
     message_code = _jaus.Message.Code.QueryTravelSpeed
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
 
+
 class SetTravelSpeed(_jaus.Message):
     message_code = _jaus.Message.Code.SetTravelSpeed
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
@@ -56,19 +64,30 @@ class SetTravelSpeed(_jaus.Message):
 
 class ReportLocalWaypoint(_jaus.Message):
     message_code = _jaus.Message.Code.ReportLocalWaypoint
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield from _local_waypoint()
 
+
 class ReportTravelSpeed(_jaus.Message):
     message_code = _jaus.Message.Code.ReportTravelSpeed
+
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
         yield _jaus.ScaledFloat('speed', bytes=4, le=True, lower_limit=0, upper_limit=327.67)
 
+
 class Service(_jaus.Service):
+    """
+    Responsible for moving the platform when given a single target waypoint, desired travel speed, current pose,
+    and current velocity state.
+
+    The waypoint remains unchanged until a new SetLocalWaypoint message is received.
+    """
+
     name = 'local_waypoint_driver'
     uri = 'urn:jaus:jss:mobility:LocalWaypointDriver'
     version = (1, 0)
