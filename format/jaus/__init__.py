@@ -11,9 +11,9 @@ class Id(_format.Specification):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Integer('subsystem', bytes=2, le=True)
-        yield _format.Integer('node', bytes=1)
         yield _format.Integer('component', bytes=1)
+        yield _format.Integer('node', bytes=1)
+        yield _format.Integer('subsystem', bytes=2, le=True)
 
 def message_handler(message_code, is_command=False, supports_events=True):
     def process(fn):

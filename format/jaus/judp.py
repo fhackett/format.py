@@ -4,11 +4,13 @@ import asyncio as _asyncio
 import socket as _socket
 import struct as _struct
 
+from . import Id as _Id
 
 MULTICAST_ADDR = '239.255.0.1'
 PORT = 3794
 MAX_PAYLOAD_SIZE = 512
 
+BROADCAST_ID = _Id(subsystem=65535, node=255, component=255)
 
 class Packet(_format.Specification):
 
@@ -92,11 +94,11 @@ class Packet(_format.Specification):
         if HC_flags is not Packet.HCFlags.NONE:
             yield _format.Integer('HC_number', bytes=1)
             yield _format.Integer('HC_length', bytes=1)
-
-        yield _format.Enum('priority', enum=Packet.Priority, bits=2, default=Packet.Priority.STANDARD)
-        yield _format.Enum('broadcast', enum=Packet.BroadcastFlags, bits=2, default=Packet.BroadcastFlags.LOCAL)
-        yield _format.Enum('ack_nack', enum=Packet.ACKNACKFlags, bits=2, default=Packet.ACKNACKFlags.NO_RESPONSE_REQUIRED)
+        
         yield _format.Enum('data_flags', enum=Packet.DataFlags, bits=2)
+        yield _format.Enum('ack_nack', enum=Packet.ACKNACKFlags, bits=2, default=Packet.ACKNACKFlags.NO_RESPONSE_REQUIRED)
+        yield _format.Enum('broadcast', enum=Packet.BroadcastFlags, bits=2, default=Packet.BroadcastFlags.LOCAL)
+        yield _format.Enum('priority', enum=Packet.Priority, bits=2, default=Packet.Priority.STANDARD)
         yield _format.Instance('destination_id', specification=_format.jaus.Id)
         yield _format.Instance('source_id', specification=_format.jaus.Id)
         yield _format.Bytes(
@@ -155,6 +157,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
 
     def _find_destination_addr(self, packet):
         if packet.broadcast in (Packet.BroadcastFlags.LOCAL, Packet.BroadcastFlags.GLOBAL):
+            packet.destination_id = BROADCAST_ID
             return (self.multicast_addr, self.multicast_port)
         else:
             return self.routings[packet.destination_id]
@@ -359,6 +362,9 @@ class ConnectedJUDPProtocol(JUDPProtocol):
     def message_received(self, message, src_id, dst_id):
         if dst_id in self._receive_queues:
             self._receive_queues[dst_id].put_nowait((message, src_id))
+        elif dst_id == BROADCAST_ID:
+            for q in self._receive_queues.values():
+                q.put_nowait((message, src_id))
         else:
             print('Received message with wrong destination', dst_id, 'I am', self._receive_queues.keys(), message)
 

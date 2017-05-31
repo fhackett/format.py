@@ -29,7 +29,7 @@ class QueryIdentification(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Enum('type', enum=QueryType, bytes=1)
+        yield _format.Enum('type', enum=cls.QueryType, bytes=1)
 
 class QueryConfiguration(_jaus.Message):
     message_code = _jaus.Message.Code.QueryConfiguration
@@ -39,10 +39,13 @@ class QueryConfiguration(_jaus.Message):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield _format.Enum('type', enum=QueryType, bytes=1)
+        yield _format.Enum('type', enum=cls.QueryType, bytes=1)
 
 class QuerySubsystemList(_jaus.Message):
     message_code = _jaus.Message.Code.QuerySubsystemList
+    @classmethod
+    def _data(cls, data):
+        yield from super()._data(data)
 
 class ComponentRequest(_format.Specification):
     @classmethod
