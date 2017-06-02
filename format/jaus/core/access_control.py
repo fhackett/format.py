@@ -123,6 +123,8 @@ class Service(_jaus.Service):
 
     @_asyncio.coroutine
     def _timeout_routine(self):
+        if self.timeout == 0:
+            return
         yield from _asyncio.sleep(self.timeout, loop=self.loop)
         if self.is_controlled:
             if not self.control_available:
