@@ -13,7 +13,7 @@ platform_management_component = \
     Component(id=Id(subsystem=SUB_SYSTEM, node=1, component=1),
               name="PlatformManagement",
               node_name="plat_man_comp",
-              subsystem_name="plat_man_subsys",
+              subsystem_name="jackfrostpm",
               services=[
                   TransportService,
                   DiscoveryService,
@@ -28,7 +28,7 @@ navigation_reporting_component = \
     Component(id=Id(subsystem=SUB_SYSTEM, node=1, component=2),
               name="NavigationReport",
               node_name="nav_rep_comp",
-              subsystem_name="nav_rep_subsys",
+              subsystem_name="jackfrostnr",
               services=[
                 TransportService,
                 EventsService,
