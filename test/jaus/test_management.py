@@ -1,4 +1,5 @@
 import pytest
+from asyncio import Queue
 
 from format.jaus.services import (
     EventsService,
@@ -117,4 +118,14 @@ async def test__status_listener_notified(test_connection, component_id, componen
     msg = await recv_msg(test_connection, src_id=component_id)
     assert msg.event_id == event_id
     assert Message._read(msg.report_message) == ReportStatus(status=ManagementStatus.EMERGENCY)
+
+@pytest.mark.asyncio(forbid_global_loop=True)
+async def test__status_listener_custom_notified(component):
+    q = Queue()
+    async def watcher(dct):
+        await q.put(dct)
+    component.management.state.watcher(watcher, keys=('status',))
+    component.management.status = ManagementStatus.EMERGENCY
+    dct = await q.get()
+    assert dct == {'status': ManagementStatus.EMERGENCY}
 
