@@ -3,7 +3,8 @@ from format.jaus.judp import ConnectedJUDPProtocol, Packet, make_multicast_socke
 from format.jaus import Id, Component
 from format.jaus.services import *
 
-SUB_SYSTEM = 1
+SUB_SYSTEM = 101
+#192.168.1.101
 
 event_loop = asyncio.get_event_loop()
 
