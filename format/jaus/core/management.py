@@ -95,7 +95,7 @@ class Service(_jaus.Service):
             return super().__getattr__(self, key)
 
     def __setattr__(self, key, val):
-        if key in ('status'):
+        if key in ('status',):
             self.state[key] = val
         else:
             super().__setattr__(key, val)

@@ -1,5 +1,6 @@
 import format as _format
 import format.jaus as _jaus
+import format.jaus.core.events as _events
 import asyncio as _asyncio
 import math
 
@@ -49,6 +50,30 @@ class Service(_jaus.Service):
     name = 'local_pose_sensor'
     uri = 'urn:jaus:jss:mobility:LocalPoseSensor'
     version = (1, 0)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state = _jaus.ServiceState(
+                {
+                    'x': 0,
+                    'y': 0,
+                    'yaw': 0,
+                },
+                loop=self.loop)
+        self.state.watcher(_events.change_watcher(self, query_codes=(_jaus.Message.Code.QueryLocalPose,)),
+                keys=('x', 'y', 'yaw'))
+ 
+    def __getattr__(self, key):
+        if key in self.state:
+            return self.state[key]
+        else:
+            return super().__getattr__(self, key)
+
+    def __setattr__(self, key, val):
+        if key in ('x', 'y', 'yaw',):
+            self.state[key] = val
+        else:
+            super().__setattr__(key, val)
 
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalPose)
     @_asyncio.coroutine
