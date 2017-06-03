@@ -3,6 +3,7 @@ import enum as _enum
 import asyncio as _asyncio
 import bitstring as _bitstring
 from functools import wraps
+import traceback as _traceback
 
 import format as _format
 
@@ -98,18 +99,23 @@ class Component:
         else:
             print('Message with no registered handler: {}'.format(message))
 
-    async def send_message(self, message, destination_id):
-        await self._connection.send_message(message._write(), destination_id=destination_id)
+    async def send_message(self, message, destination_id, **kwargs):
+        print('Sending message to {}: {}'.format(destination_id, message))
+        await self._connection.send_message(message._write(), destination_id=destination_id, **kwargs)
 
     async def _listener_fn(self, connection, loop=None):
         self._connection = connection
         while True:
             message_bytes, source_id = await connection.listen()
-            message = Message._read(message_bytes)
-            print('Message received', message, source_id)
-            result = await self.dispatch_message(message, source_id)
-            if result is not None:
-                await self.send_message(result, destination_id=source_id)
+            try:
+                message = Message._read(message_bytes)
+                print('Message received', message, source_id)
+                result = await self.dispatch_message(message, source_id)
+                if result is not None:
+                    await self.send_message(result, destination_id=source_id)
+            except Exception as ex:
+                print('Message processing from {} failed: {}'.format(source_id, message_bytes))
+                _traceback.print_exc()
 
     def listen(self, connection, *, loop=None):
         if loop is None:
