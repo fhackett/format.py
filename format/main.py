@@ -1,9 +1,7 @@
 import asyncio
 from format.jaus.judp import ConnectedJUDPProtocol, Packet, make_multicast_socket
 from format.jaus import Id, Component
-from format.jaus.services import DiscoveryService, EventsService, LivenessService, \
-    AccessControlService, LocalWaypointDriverService, LocalPoseSensorService, \
-    LocalWaypointListDriverService, VelocityStateSensorService
+from format.jaus.services import *
 
 SUB_SYSTEM = 1
 
@@ -16,7 +14,7 @@ platform_management_component = \
               node_name="plat_man_comp",
               subsystem_name="plat_man_subsys",
               services=[
-                  #Transport,
+                  TransportService,
                   DiscoveryService,
                   EventsService,
                   LivenessService,
@@ -31,10 +29,10 @@ navigation_reporting_component = \
               node_name="nav_rep_comp",
               subsystem_name="nav_rep_subsys",
               services=[
-                #Transport,
+                TransportService,
                 EventsService,
                 AccessControlService,
-                # Management
+                ManagementService,
                 LivenessService,
                 LocalWaypointDriverService,
                 LocalWaypointListDriverService,
