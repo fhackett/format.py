@@ -6,6 +6,12 @@ from format.jaus.services import (
     AccessControlService,
 )
 from format.jaus import Message
+from format.jaus.core.events import (
+    CreateEvent,
+    ConfirmEventRequest,
+    Event,
+    EventType,
+)
 from format.jaus.core.management import (
     QueryStatus,
     ReportStatus,
@@ -92,3 +98,23 @@ async def test__set_emergency__controlled__denies_control_and_release(control_co
         destination_id=component_id)
     reply = await recv_msg(control_connection, src_id=component_id)
     assert reply == RejectControl(response_code=RejectControl.ResponseCode.NOT_AVAILABLE)
+
+@pytest.mark.asyncio(forbid_global_loop=True)
+async def test__status_listener_notified(test_connection, component_id, component, recv_msg):
+    await test_connection.send_message(
+        CreateEvent(
+            request_id=10,
+            event_type=EventType.EVERY_CHANGE,
+            requested_periodic_rate=0,
+            query_message=QueryStatus()._write())._write(),
+        destination_id=component_id)
+    msg = await recv_msg(test_connection, src_id=component_id)
+    assert msg.request_id == 10
+    assert msg.confirmed_periodic_rate == 0
+    event_id = msg.event_id
+
+    component.management.status = ManagementStatus.EMERGENCY
+    msg = await recv_msg(test_connection, src_id=component_id)
+    assert msg.event_id == event_id
+    assert Message._read(msg.report_message) == ReportStatus(status=ManagementStatus.EMERGENCY)
+
