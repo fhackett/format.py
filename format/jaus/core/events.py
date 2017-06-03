@@ -5,24 +5,14 @@ import format as _format
 import format.jaus as _jaus
 
 
-def change_watcher(backing, query_codes):
+def change_watcher(self, query_codes):
     """
-    Returns a property that proxies to a property named `backing`.
-
     When on a Service, alerts the events service that ON_CHANGE events with
     the provided query codes should be fired if the given property has changed.
     """
-    @property
-    def prop(self):
-        return getattr(self, backing)
-    @prop.setter
-    def prop(self, val):
-        if val != getattr(self, backing):
-            _asyncio.ensure_future(
-                self.component.events.post_change(message_codes=query_codes),
-                loop=self.loop)
-        setattr(self, backing, val)
-    return prop
+    async def fn(state):
+        await self.component.events.post_change(message_codes=query_codes)
+    return fn
 
 
 class EventType(_enum.Enum):

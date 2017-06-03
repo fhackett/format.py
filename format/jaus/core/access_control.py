@@ -95,20 +95,39 @@ class Service(_jaus.Service):
     uri = 'urn:jaus:jss:core:AccessControl'
     version = (1, 0)
 
-    # Watchable attributes
-    controlling_component = _events.change_watcher(
-        '_controlling_component',
-        query_codes=(_jaus.Message.Code.QueryControl,))
-    authority = _events.change_watcher(
-        '_authority',
-        query_codes=(_jaus.Message.Code.QueryAuthority,))
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._controlling_component = None
-        self._authority = self.component.default_authority
         self.timeout_routine = _asyncio.ensure_future(self._timeout_routine(), loop=self.loop)
         self.timeout = 5 # seconds
+        self.state = _jaus.ServiceState(
+                {
+                    'controlling_component': None,
+                    'authority': self.component.default_authority,
+                },
+                loop=self.loop)
+        # change watchers
+        self.state.watcher(
+                keys=('controlling_component',),
+                fn=_events.change_watcher(
+                    self,
+                    query_codes=(_jaus.Message.Code.QueryControl,)))
+        self.state.watcher(
+                keys=('authority',),
+                fn=_events.change_watcher(
+                    self,
+                    query_codes=(_jaus.Message.Code.QueryAuthority,)))
+
+    def __getattr__(self, key):
+        if key in self.state:
+            return self.state[key]
+        else:
+            return super().__getattr__(self, key)
+
+    def __setattr__(self, key, val):
+        if key in ('controlling_component', 'authority'):
+            self.state[key] = val
+        else:
+            super().__setattr__(key, val)
 
     async def close(self):
         self.timeout_routine.cancel()

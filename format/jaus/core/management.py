@@ -76,15 +76,29 @@ class Service(_jaus.Service):
     uri = 'urn:jaus:jss:core:Management'
     version = (1, 0)
 
-    status = _events.change_watcher(
-        '_status',
-        query_codes=(_jaus.Message.Code.QueryStatus,))
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._status = ManagementStatus.STANDBY
+        self.state = _jaus.ServiceState(
+                {'status': ManagementStatus.STANDBY},
+                loop=self.loop)
+        self.state.watcher(
+                fn=_events.change_watcher(self,
+                    query_codes=(_jaus.Message.Code.QueryStatus,)),
+                keys=('status',))
         self.old_status = None
         self.id_store = set()
+
+    def __getattr__(self, key):
+        if key in self.state:
+            return self.state[key]
+        else:
+            return super().__getattr__(self, key)
+
+    def __setattr__(self, key, val):
+        if key in ('controlling_component', 'authority'):
+            self.state[key] = val
+        else:
+            super().__setattr__(key, val)
 
     @_jaus.message_handler(
         _jaus.Message.Code.Shutdown,
