@@ -1,10 +1,24 @@
 import asyncio
+
+from format.jaus.core.management import ManagementStatus
 from format.jaus.judp import ConnectedJUDPProtocol, Packet, make_multicast_socket
 from format.jaus import Id, Component
 from format.jaus.services import *
 
 SUB_SYSTEM = 101
 #192.168.1.101
+
+def notify_status():
+    while True:
+        current_status = navigation_reporting_component.management.status
+
+        if current_status in (ManagementStatus.EMERGENCY, ManagementStatus.SHUTDOWN):
+            print("Shutting down")
+            break
+        else:
+            print("\n\neverything is okay\n\n")
+        yield from asyncio.sleep(1)
+
 
 event_loop = asyncio.get_event_loop()
 
@@ -53,4 +67,4 @@ platform_management_component.listen(plat_man_connection)
 nav_rep_connection = protocol.connect(Id(subsystem=SUB_SYSTEM, node=1, component=2))
 navigation_reporting_component.listen(nav_rep_connection)
 
-event_loop.run_forever()
+event_loop.run_until_complete(notify_status())
