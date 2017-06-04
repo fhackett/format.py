@@ -5,6 +5,7 @@ import bitstring as _bitstring
 from functools import wraps
 import traceback as _traceback
 import collections.abc as _abcc
+import datetime as _datetime
 
 import format as _format
 
@@ -314,11 +315,18 @@ class Timestamp(_format.Specification):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield ScaledFloat('ms', bits=10, lower_limit=0, upper_limit=999)
-        yield ScaledFloat('sec', bits=6, lower_limit=0, upper_limit=59)
-        yield ScaledFloat('min', bits=6, lower_limit=0, upper_limit=59)
-        yield ScaledFloat('hr', bits=5, lower_limit=0, upper_limit=23)
-        yield ScaledFloat('day', bits=5, lower_limit=1, upper_limit=31)
+        yield _jaus.Integer('ms', bits=10)
+        yield _jaus.Integer('sec', bits=6)
+        yield _jaus.Integer('min', bits=6)
+        yield _jaus.Integer('hr', bits=5)
+        yield _jaus.Integer('day', bits=5)
+    def from_datetime(self, datetime):
+        return Timestamp(
+            day=datetime.day,
+            hr=datetime.hour,
+            min=datetime.minute,
+            sec=datetime.second,
+            ms=round(datetime.microsecond/1000))
 
 class DumbRecord(_format.Record):
     def read(self, stream, data):

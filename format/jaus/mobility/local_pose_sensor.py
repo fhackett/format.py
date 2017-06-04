@@ -1,6 +1,7 @@
 import format as _format
 import format.jaus as _jaus
 import format.jaus.core.events as _events
+import datetime as _datetime
 import asyncio as _asyncio
 import math
 
@@ -80,11 +81,11 @@ class Service(_jaus.Service):
     def on_query_local_pose(self, message, source_id):
         fields = {}
         if 'x' in message.presence_vector:
-            fields['x'] = 0
+            fields['x'] = self.x
         if 'y' in message.presence_vector:
-            fields['y'] = 0
+            fields['y'] = self.y
         if 'yaw' in message.presence_vector:
-            fields['yaw'] = 0
+            fields['yaw'] = self.yaw
         if 'timestamp' in message.presence_vector:
-            fields['timestamp'] = Timestamp(ms=0, sec=0, min=0, hr=0, day=0)
+            fields['timestamp'] = Timestamp.from_datetime(_datetime.datetime.now())
         return ReportLocalPose(**fields)
