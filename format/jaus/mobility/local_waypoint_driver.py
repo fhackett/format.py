@@ -1,4 +1,5 @@
 import format.jaus as _jaus
+import format.jaus.core.events as _events
 import asyncio as _asyncio
 import math
 
@@ -94,9 +95,30 @@ class Service(_jaus.Service):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.travel_speed = 0
-        self.x = 0
-        self.y = 0
+        self.state = _jaus.ServiceState(
+                {
+                    'travel_speed': 0,
+                    'x': 0,
+                    'y': 0,
+                },
+                loop=self.loop)
+        self.state.watcher(_events.change_watcher(self, query_codes=(_jaus.Message.Code.QueryTravelSpeed,)),
+                keys=('x','y',))
+        self.state.watcher(_events.change_watcher(self, query_codes=(_jaus.Message.Code.QueryLocalWaypoint,)),
+                keys=('travel_speed',))
+    
+    def __getattr__(self, key):
+        if key in self.state:
+            return self.state[key]
+        else:
+            return super().__getattr__(self, key)
+
+    def __setattr__(self, key, val):
+        if key in ('x', 'y', 'travel_speed',):
+            self.state[key] = val
+        else:
+            super().__setattr__(key, val)
+
 
     @_jaus.message_handler(_jaus.Message.Code.SetLocalWaypoint, is_command=True)
     @_jaus.is_command

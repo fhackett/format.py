@@ -4,6 +4,8 @@ import asyncio as _asyncio
 import bitstring as _bitstring
 from functools import wraps
 import traceback as _traceback
+import collections.abc as _abcc
+import datetime as _datetime
 
 import format as _format
 
@@ -129,6 +131,49 @@ class Component:
             self._listener = None
         for s in self.services.values():
             await s.close()
+
+class ServiceState(_abcc.MutableMapping):
+    def __init__(self, state, *, loop=None):
+        self._watchers = {}
+        self._state = state
+        self._deferred_reaction = None
+        self._changed = set()
+        self.loop = loop
+
+    def watcher(self, fn, keys):
+        fn._keys = keys
+        for key in keys:
+            s = self._watchers.setdefault(key, set())
+            s.add(fn)
+    
+    def _defer(self, props):
+        self._changed.update(props)
+        if self._deferred_reaction is not None:
+            return
+        async def react():
+            await _asyncio.sleep(0, loop=self.loop)
+            changed = self._changed
+            self._changed = set()
+            to_call = set()
+            for k in changed:
+                if k in self._watchers:
+                    to_call.update(self._watchers[k])
+            for fn in to_call:
+                await fn(self._state)
+        self._deferred_reaction = _asyncio.ensure_future(react(), loop=self.loop)
+    
+    def __setitem__(self, name, value):
+        self._state[name] = value
+        self._defer({name})
+    def __getitem__(self, key):
+        return self._state[key]
+    def __delitem__(self, key):
+        del self._state[key]
+        self._defer({key})
+    def __iter__(self):
+        return iter(self._state)
+    def __len__(self):
+        return len(self._state)
 
 class Message(_format.Specification):
     _variant_key_name = 'message_code'
@@ -270,11 +315,18 @@ class Timestamp(_format.Specification):
     @classmethod
     def _data(cls, data):
         yield from super()._data(data)
-        yield ScaledFloat('ms', bits=10, lower_limit=0, upper_limit=999)
-        yield ScaledFloat('sec', bits=6, lower_limit=0, upper_limit=59)
-        yield ScaledFloat('min', bits=6, lower_limit=0, upper_limit=59)
-        yield ScaledFloat('hr', bits=5, lower_limit=0, upper_limit=23)
-        yield ScaledFloat('day', bits=5, lower_limit=1, upper_limit=31)
+        yield _jaus.Integer('ms', bits=10)
+        yield _jaus.Integer('sec', bits=6)
+        yield _jaus.Integer('min', bits=6)
+        yield _jaus.Integer('hr', bits=5)
+        yield _jaus.Integer('day', bits=5)
+    def from_datetime(self, datetime):
+        return Timestamp(
+            day=datetime.day,
+            hr=datetime.hour,
+            min=datetime.minute,
+            sec=datetime.second,
+            ms=round(datetime.microsecond/1000))
 
 class DumbRecord(_format.Record):
     def read(self, stream, data):

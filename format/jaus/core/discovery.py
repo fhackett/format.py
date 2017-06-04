@@ -116,7 +116,7 @@ class ReportIdentification(_jaus.Message):
         yield from super()._data(data)
         yield _format.Enum('query_type', enum=QueryIdentification.QueryType, bytes=1)
         yield _format.Enum('type', enum=IdentificationType, bytes=2, le=True)
-        yield from _jaus.counted_string('identification', bytes=2, le=True)
+        yield from _jaus.counted_string('identification', bytes=1, le=True)
 
 
 class ComponentConfigurationReport(_format.Specification):

@@ -1,5 +1,7 @@
 import format as _format
 import format.jaus as _jaus
+import format.jaus.core.events as _events
+import datetime as _datetime
 import asyncio as _asyncio
 import math
 
@@ -50,16 +52,40 @@ class Service(_jaus.Service):
     uri = 'urn:jaus:jss:mobility:LocalPoseSensor'
     version = (1, 0)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state = _jaus.ServiceState(
+                {
+                    'x': 0,
+                    'y': 0,
+                    'yaw': 0,
+                },
+                loop=self.loop)
+        self.state.watcher(_events.change_watcher(self, query_codes=(_jaus.Message.Code.QueryLocalPose,)),
+                keys=('x', 'y', 'yaw'))
+ 
+    def __getattr__(self, key):
+        if key in self.state:
+            return self.state[key]
+        else:
+            return super().__getattr__(self, key)
+
+    def __setattr__(self, key, val):
+        if key in ('x', 'y', 'yaw',):
+            self.state[key] = val
+        else:
+            super().__setattr__(key, val)
+
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalPose)
     @_asyncio.coroutine
     def on_query_local_pose(self, message, source_id):
         fields = {}
         if 'x' in message.presence_vector:
-            fields['x'] = 0
+            fields['x'] = self.x
         if 'y' in message.presence_vector:
-            fields['y'] = 0
+            fields['y'] = self.y
         if 'yaw' in message.presence_vector:
-            fields['yaw'] = 0
+            fields['yaw'] = self.yaw
         if 'timestamp' in message.presence_vector:
-            fields['timestamp'] = Timestamp(ms=0, sec=0, min=0, hr=0, day=0)
+            fields['timestamp'] = Timestamp.from_datetime(_datetime.datetime.now())
         return ReportLocalPose(**fields)
