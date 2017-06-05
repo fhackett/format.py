@@ -134,12 +134,7 @@ class Service(_jaus.Service):
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalWaypoint)
     @_asyncio.coroutine
     def on_query_local_waypoint(self, message, src_id):
-        fields = {}
-        if 'x' in message.presence_vector:
-            fields['x'] = self.x
-        if 'y' in message.presence_vector:
-            fields['y'] = self.y
-        return ReportLocalWaypoint(**fields)
+        return ReportLocalWaypoint(x=self.x, y=self.y)
 
     @_jaus.message_handler(_jaus.Message.Code.SetTravelSpeed, is_command=True)
     @_jaus.is_command
