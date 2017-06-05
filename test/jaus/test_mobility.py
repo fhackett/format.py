@@ -83,14 +83,14 @@ async def test__query_velocity_state(component_id, test_connection, recv_msg):
 @pytest.mark.asyncio
 async def test__local_waypoint_controlled(component_id, control_connection, recv_msg):
     await control_connection.send_message(
-            SetLocalWaypoint(x=5)._write(),
+            SetLocalWaypoint(x=5, y=6)._write(),
             destination_id=component_id)
     await control_connection.send_message(
             QueryLocalWaypoint(presence_vector={'x', 'y', 'z'})._write(),
             destination_id=component_id)
     reply = await recv_msg(control_connection, src_id=component_id)
     assert isinstance(reply, ReportLocalWaypoint)
-    assert (round(reply.x), round(reply.y), reply.z) == (5, 0, None)
+    assert (round(reply.x), round(reply.y), reply.z) == (5, 6, None)
 
 @pytest.mark.asyncio
 async def test__travel_speed_uncontrolled(component_id, test_connection, recv_msg):
