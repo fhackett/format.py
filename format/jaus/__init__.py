@@ -152,6 +152,7 @@ class ServiceState(_abcc.MutableMapping):
             return
         async def react():
             await _asyncio.sleep(0, loop=self.loop)
+            self._deferred_reaction = None
             changed = self._changed
             self._changed = set()
             to_call = set()

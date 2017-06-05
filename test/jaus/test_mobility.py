@@ -137,11 +137,12 @@ async def test__local_pose_event(component_id, test_connection, component, recv_
     reply = await recv_msg(test_connection, src_id=component_id)
     assert isinstance(reply, ConfirmEventRequest)
     event_id = reply.event_id
-    component.local_pose_sensor.x = 5
-    event = await recv_msg(test_connection, src_id=component_id)
-    report = Message._read(event.report_message)
-    assert report.presence_vector == {'x', 'y', 'yaw'}
-    assert round(report.x) == 5
-    assert round(report.y) == 0
-    assert round(report.yaw) == 0
+    for i in (1,2):
+        component.local_pose_sensor.x = 5
+        event = await recv_msg(test_connection, src_id=component_id)
+        report = Message._read(event.report_message)
+        assert report.presence_vector == {'x', 'y', 'yaw'}
+        assert round(report.x) == 5
+        assert round(report.y) == 0
+        assert round(report.yaw) == 0
 
