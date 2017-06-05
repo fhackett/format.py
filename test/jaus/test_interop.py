@@ -6,6 +6,7 @@ from format.jaus.judp import Payload, Packet
 from format.jaus import Message, Id
 
 from format.jaus.core.discovery import QueryIdentification
+from format.jaus.mobility.local_waypoint_driver import SetLocalWaypoint
 
 @pytest.mark.parametrize('msg,expected', [
         (
@@ -34,6 +35,7 @@ def test__payloads__parse_3rd_party(msg, expected):
 
 @pytest.mark.parametrize('msg,expected', [
         ('0x002b02', QueryIdentification(type=QueryIdentification.QueryType.SUBSYSTEM)),
+        (b'\r\x04\x00\xdcF\x03\x80\x00\x00\x00\x80', SetLocalWaypoint(x=10.00000629806891, y=2.3283064365386963e-05)),
     ])
 def test__messages__parse_3rd_party(msg, expected):
     actual = Message._read(BitStream(msg))
