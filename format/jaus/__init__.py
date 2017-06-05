@@ -96,6 +96,7 @@ class Component:
 
     async def dispatch_message(self, message, source_id):
         if message.message_code in self.message_handlers:
+            print('Dispatch message from {}: {}'.format(source_id, message))
             handler = self.message_handlers[message.message_code]
             return await handler(message, source_id)
         else:
@@ -152,6 +153,7 @@ class ServiceState(_abcc.MutableMapping):
             return
         async def react():
             await _asyncio.sleep(0, loop=self.loop)
+            self._deferred_reaction = None
             changed = self._changed
             self._changed = set()
             to_call = set()

@@ -95,3 +95,10 @@ async def test__learns_new_addresses(connection1, connection2):
     msg, src = await connection1.listen(timeout=2)
     assert msg == b'bbbb'
     assert src == jaus.Id(subsystem=1, node=1, component=2)
+
+@pytest.mark.asyncio
+async def test__response_required(connection1, connection2):
+    await connection1.send_message(b'aaaa', destination_id=jaus.Id(subsystem=1, node=1, component=2), require_ack=True)
+    msg, src = await connection2.listen(timeout=2)
+    assert msg == b'aaaa'
+    assert src == jaus.Id(subsystem=1, node=1, component=1)

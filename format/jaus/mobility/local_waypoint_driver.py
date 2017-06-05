@@ -7,9 +7,11 @@ import math
 def _local_waypoint():
     yield from _jaus.with_presence_vector(
         bytes=1,
-        optional=[
+        required=[
             _jaus.ScaledFloat('x', bytes=4, le=True, lower_limit=-100000, upper_limit=100000),
             _jaus.ScaledFloat('y', bytes=4, le=True, lower_limit=-100000, upper_limit=100000),
+        ],
+        optional=[
             _jaus.ScaledFloat('z', bytes=4, le=True, lower_limit=-100000, upper_limit=100000),
             _jaus.ScaledFloat('roll', bytes=2, le=True, lower_limit=-math.pi, upper_limit=math.pi),
             _jaus.ScaledFloat('pitch', bytes=2, le=True, lower_limit=-math.pi, upper_limit=math.pi),
@@ -111,7 +113,7 @@ class Service(_jaus.Service):
         if key in self.state:
             return self.state[key]
         else:
-            return super().__getattr__(self, key)
+            raise AttributeError(key)
 
     def __setattr__(self, key, val):
         if key in ('x', 'y', 'travel_speed',):
@@ -132,12 +134,7 @@ class Service(_jaus.Service):
     @_jaus.message_handler(_jaus.Message.Code.QueryLocalWaypoint)
     @_asyncio.coroutine
     def on_query_local_waypoint(self, message, src_id):
-        fields = {}
-        if 'x' in message.presence_vector:
-            fields['x'] = self.x
-        if 'y' in message.presence_vector:
-            fields['y'] = self.y
-        return ReportLocalWaypoint(**fields)
+        return ReportLocalWaypoint(x=self.x, y=self.y)
 
     @_jaus.message_handler(_jaus.Message.Code.SetTravelSpeed, is_command=True)
     @_jaus.is_command
