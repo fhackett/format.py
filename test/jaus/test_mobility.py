@@ -1,6 +1,11 @@
 import pytest
 
 from format.jaus import Message
+from format.jaus.core.events import (
+        CreateEvent,
+        ConfirmEventRequest,
+        EventType,
+)
 from format.jaus.mobility.local_pose_sensor import (
         QueryLocalPose,
         ReportLocalPose,
@@ -118,4 +123,25 @@ async def test__query_active_element(component_id, test_connection, recv_msg):
             destination_id=component_id)
     reply = await recv_msg(test_connection, src_id=component_id)
     assert reply == ReportActiveElement(uid=0)
+
+@pytest.mark.asyncio(forbid_global_loop=True)
+async def test__local_pose_event(component_id, test_connection, component, recv_msg):
+    await test_connection.send_message(
+        CreateEvent(
+            request_id=2,
+            event_type=EventType.EVERY_CHANGE,
+            requested_periodic_rate=0,
+            query_message=QueryLocalPose(
+                presence_vector={'x', 'y', 'yaw'})._write())._write(),
+        destination_id=component_id)
+    reply = await recv_msg(test_connection, src_id=component_id)
+    assert isinstance(reply, ConfirmEventRequest)
+    event_id = reply.event_id
+    component.local_pose_sensor.x = 5
+    event = await recv_msg(test_connection, src_id=component_id)
+    report = Message._read(event.report_message)
+    assert report.presence_vector == {'x', 'y', 'yaw'}
+    assert round(report.x) == 5
+    assert round(report.y) == 0
+    assert round(report.yaw) == 0
 

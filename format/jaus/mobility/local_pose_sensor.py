@@ -68,7 +68,7 @@ class Service(_jaus.Service):
         if key in self.state:
             return self.state[key]
         else:
-            return super().__getattr__(self, key)
+            raise AttributeError(key)
 
     def __setattr__(self, key, val):
         if key in ('x', 'y', 'yaw',):
