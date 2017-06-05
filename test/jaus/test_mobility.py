@@ -145,4 +145,14 @@ async def test__local_pose_event(component_id, test_connection, component, recv_
         assert round(report.x) == 5
         assert round(report.y) == 0
         assert round(report.yaw) == 0
+ 
+    component.local_pose_sensor.x = 5
+    component.local_pose_sensor.y = 6
+    component.local_pose_sensor.yaw = 1
+    event = await recv_msg(test_connection, src_id=component_id)
+    report = Message._read(event.report_message)
+    assert report.presence_vector == {'x', 'y', 'yaw'}
+    assert round(report.x) == 5
+    assert round(report.y) == 6
+    assert round(report.yaw) == 1
 

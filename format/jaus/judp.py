@@ -303,7 +303,7 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
     def _packet_received(self, packet, addr):
         self.routings[packet.source_id] = addr
         accumulators = self._accumulators.setdefault(packet.destination_id, {})
-        resolvers = self._resolvers.setdefault(packet.destination_id, {})
+        resolvers = self._resolvers.setdefault(packet.source_id, {})
         if packet.ack_nack in (Packet.ACKNACKFlags.ACK, Packet.ACKNACKFlags.NACK):
             if packet.sequence_number in resolvers:
                 resolvers[packet.sequence_number].set_result(packet)
@@ -316,7 +316,9 @@ class JUDPProtocol(_asyncio.DatagramProtocol):
                     ack_nack=Packet.ACKNACKFlags.ACK,
                     data_flags=packet.data_flags,
                     destination_id=packet.source_id,
-                    source_id=packet.destination_id)
+                    source_id=packet.destination_id,
+                    contents=packet.contents,
+                    sequence_number=packet.sequence_number)
                 self._send_packet(ack)
             accumulators[packet.sequence_number] = packet
             msg = self._try_reconstruct_message(packet, packet.destination_id)

@@ -81,22 +81,6 @@ async def test__preemption__insufficient_authority(control_connection, connectio
     reply = await recv_msg(connection2, src_id=component_id)
     assert reply == ConfirmControl(response_code=ConfirmControl.ResponseCode.INSUFFICIENT_AUTHORITY)
 
-"""@asyncio.coroutine
-def reacquire_control(connection):
-    yield from connection.send_message(messages.RequestControlMessage(
-        authority_code=5))
-    results = yield from connection.receive_messages(types=(messages.MessageCode.ConfirmControl,))
-    assert results == [messages.ConfirmControlMessage(
-        response_code=messages.ConfirmControlResponseCode.CONTROL_ACCEPTED)]
-
-@asyncio.coroutine
-def release_control(connection):
-    yield from connection.send_message(messages.ReleaseControlMessage())
-    results = yield from connection.receive_messages(types=(messages.MessageCode.RejectControl,))
-    assert results == [messages.RejectControlMessage(
-        response_code=messages.RejectControlResponseCode.CONTROL_RELEASED)]
-"""
-
 @pytest.mark.asyncio(forbid_global_loop=True)
 async def test__preemption__sufficient_authority(control_connection, connection2, component_id, recv_msg):
     await connection2.send_message(
